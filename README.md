@@ -34,6 +34,8 @@ After subsetting by significance:
 euk-prok prok-euk 
 10168404 10168404
 
-#### Notes
-Last update
-ack.
+### Graphical comic abstract
+![vent-comic](figs/GR-comic-protistsession.jpg)
+
+
+> Last updated S. Hu August 2020
