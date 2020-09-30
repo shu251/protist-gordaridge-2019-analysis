@@ -19,13 +19,18 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, cache=FALSE)
 ```
+# Overview
+Hu et al. _in prep_. **Protistan grazing and biogeography at Gorda Ridge hydrothermal vent field**
 
-# Import original ASV tables - quality control
+Code for analysis and figure generation for 18S and 16S tag-sequencing data. Imports raw ASV tables, performs quality control, taxonomy curation, and all statistical analyses.
 
-Set up working R environment and import 18S ASV table. Modify input tables and import as phyloseq objects in order to perform quality control removal of contaminant ASVs (_decontam_)
+# Import 18S ASV table & quality control
+
+Set up working R environment and import 18S ASV table. Modify input tables and import as phyloseq objects in order to perform quality control removal of contaminant ASVs (_decontam_).
 
 ```{r import and set up env, message=FALSE, warning=FALSE}
-library(tidyverse);library(reshape2);library(cowplot);library(patchwork);library(phyloseq);library(decontam)
+library(tidyverse);library(reshape2);library(cowplot)
+library(patchwork);library(phyloseq);library(decontam)
 load("data-input/GR-ASVtables-updatedTax.RData", verbose = TRUE)
 ```
 
@@ -43,7 +48,7 @@ taxmat <- GR_tagseq_wideformat %>%
 # class(taxmat)
 # head(taxmat)
 ```
-
+Note that Axial ID originates from a laboratory blank sample that was exactrated at the same time.
 ```{r extract ASV count information}
 asvmat <- GR_tagseq_wideformat %>% 
   select(Feature.ID, starts_with(c("Gorda", "Axial"))) %>% 
@@ -51,7 +56,7 @@ asvmat <- GR_tagseq_wideformat %>%
   as.matrix
 ```
 
-
+Import metadata below and combine with phyloseq object.
 ```{r Import as phyloseq object}
 row.names(taxmat)<-row.names(asvmat)
 # class(asvmat);class(taxmat)
@@ -84,7 +89,8 @@ physeq_names = merge_phyloseq(physeq, sampledata)
 # sample_data(physeq_names)
 ```
 
-## Decontam step
+## Identify contaminant ASVs
+_Decontam_ will identify putative contaminate ASVs based on the difference in prevalence between control blank and environmental samples. First review the library size or number of sequences within each sample to see how varied the control samples are to the experimental samples.
 ```{r check library size}
 # Decontam:
 physeq_names
@@ -102,7 +108,6 @@ ggplot(data=df, aes(x=Index, y=LibrarySize, fill=Sample_or_Control, shape=LOCATI
 > Shows that out of the 3 ship blanks I have, one of the sames has a pretty large library size, otherwise, control samples have very small library sizes.
 
 
-## Identify contaminant ASVs
 ```{r ID contaminants}
 # Assign negative control designation
 sample_data(physeq_names)$is.neg <- sample_data(physeq_names)$Sample_or_Control == "Control Sample"
@@ -159,7 +164,7 @@ passfail <- GR_tagseq_longformat %>%
   data.frame
 ```
 
-## Save output
+## Report sequence stats
 ```{r decontam, message=FALSE, warning=FALSE}
 passfail_wID <- left_join(passfail, ventnames, by = "SAMPLE")
 
@@ -184,14 +189,13 @@ counts_decont <- subset(GR_tagseq_longformat, !(Feature.ID %in% list_of_contams)
 length(unique(counts_decont$Feature.ID)) - length(unique(GR_tagseq_longformat$Feature.ID)) # Confirm 34 lines removed
 ```
 
-# Percent of sequence removed after decontam step
-```{r}
+```{r Percent of sequences removed after decontam}
 # % of sequences was removed following decontam; this is counting the ship blank samples themselves
 100*(1-(sum(counts_decont$COUNT)/sum(GR_tagseq_counts_noCTRL$COUNT)))
 # head(counts_decont)
 ```
 
-```{r}
+```{r Report removal of sequences by sample}
 # Breakdown by samples:
 passfail_wide <- dcast(passfail, SAMPLE ~ CONTAM)
 passfail_wide$PercLossSeq <- paste(100*(passfail_wide$Fail/(passfail_wide$Fail+passfail_wide$Pass)))
@@ -214,14 +218,17 @@ physeq_clean <- subset_samples(physeq_tmp, sample_names(physeq_tmp) !="GordaRidg
 tmp <- subset(GR_tagseq_longformat, !(SAMPLEID %in% "CTRL")) # Remove controls, get list of sample names that are controls
 samples_keep <- as.character(unique(tmp$SAMPLE))
 physeq_clean_true <- prune_samples(samples_keep, physeq_clean)
+```
 
+## Save output
+```{r Save output}
 # Save as R Data
 save(counts_decont, file="data-input/GR-ASV-table-clean-19-08-2020.RData")
 ```
 
 # Plot high level taxonomy of protists _in situ_
 
-Import cleaned ASV data, curate taxonomic assignments specific to protists.
+Import cleaned ASV data, curate taxonomic assignments specific to protists, create bar plot to demonstrate protistan diversity at Gorda Ridge.
 
 ```{r import and format dataframe, message=FALSE, warning=FALSE}
 load("data-input/GR-ASV-table-clean-19-08-2020.RData", verbose=TRUE) # after decontam clenaing
@@ -247,8 +254,8 @@ gr_counts_name <- gr_counts %>%
 gr_counts_name$LocationName[gr_counts_name$LOCATION == "Shipblank"]="Shipblank"
 ```
 
-
 ## Taxonomy curation - PR2
+Function below **pr2_curate()** is the custom manual curation of the taxonomic assignments from the PR2 database. The function creates new columns with taxonomic information that summarizes the core groups in the dataset.
 
 ```{r Revise and explore taxonomy assignment}
 pr2_curate <- function(df){
@@ -273,20 +280,19 @@ pr2_curate <- function(df){
   df$Taxa[df$Supergroup == "Archaeplastida"]="Archaeplastida-Other"
   df$Taxa[df$Division == "Chlorophyta"]="Archaeplastida-Chlorophyta"
   df$Taxa[df$Supergroup == "Excavata"]="Excavata"
-  # df$Taxa[df$Division == "Metamonada"]="Excavata-Metamonada"
+  df$Taxa[df$Supergroup == "Apusozoa"]="Apusozoa"
   df$Taxa[df$Supergroup == "Amoebozoa"]="Amoebozoa"
-  # df$Taxa[df$Division == "Lobosa"]="Amoebozoa-Lobosa"
   df$Taxa[df$Supergroup == "Rhizaria"]="Rhizaria-Other"
   df$Taxa[df$Division == "Cercozoa"]="Rhizaria-Cercozoa"
   df$Taxa[df$Division == "Radiolaria"]="Rhizaria-Radiolaria"
   return(df)
 }
 ```
-
+Apply PR2 curation to 18S data.
 ```{r Run taxonomy curation fxn}
 gr_counts_wtax <- pr2_curate(gr_counts_name)
 # head(gr_counts_wtax[1:3,])
-# unique(gr_counts_wtax$Taxa)
+unique(gr_counts_wtax$Taxa)
 ```
 > Output is the full ASV table with added columns for curated taxonomy. Above also provides a list of the unique taxonomic names assigned.
 
@@ -302,42 +308,39 @@ gr_counts_filter$SAMPLEID<- sub("SUPRS2", "SUPR", gr_counts_filter$SAMPLEID)
 gr_counts_filter$SAMPLEID<- sub("SUPRS3", "SUPR", gr_counts_filter$SAMPLEID)
 gr_counts_filter$SAMPLEID<- sub("SUPRS1", "SUPR", gr_counts_filter$SAMPLEID)
 ```
-```{r}
-unique(gr_counts_filter$Taxa)
-```
 
-### Get stats on taxonomy assignments
 
-```{r}
+### Report sequence stats after curation
+
+```{r Sum of all sequences}
 # Sum of all sequences
 a <- sum(gr_counts_filter %>% filter(!(SAMPLEID == "CTRL")) %>% select(COUNT)); a
 ```
 
-```{r}
+```{r Total ASVs}
 # Total ASVs
 dim(unique(gr_counts_filter %>% filter(!(SAMPLEID == "CTRL")) %>% select(Feature.ID)))[1]
 ```
 
-```{r}
+```{r Percent of all sequences Unassigned}
 # Percentage of all sequences Unassigned Eukaryote
 x <- sum(gr_counts_filter %>% filter(!(SAMPLEID == "CTRL")) %>% filter(Taxon_updated == "Eukaryota") %>% select(COUNT))
 100*(x/a)
 ```
 
-```{r}
+```{r ASVs left Unassigned}
 # Total ASVs left "Unassigned-Eukaryote"
 dim(unique(gr_counts_filter %>% filter(!(SAMPLEID == "CTRL")) %>% filter(Taxon_updated == "Eukaryota") %>% select(Feature.ID)))[1]
 ```
 
-```{r}
+```{r Percent of all sequences assigned Opisthokonts}
 # Percentage of all sequences assigned Opisthokonts
 x <- sum(gr_counts_filter %>% filter(!(SAMPLEID == "CTRL")) %>% filter(Supergroup == "Opisthokonta") %>% select(COUNT))
 100*(x/a)
 dim(unique(gr_counts_filter %>% filter(!(SAMPLEID == "CTRL")) %>% filter(Supergroup == "Opisthokonta") %>% select(Feature.ID)))[1]
 ```
 
-
-## Prepare dataframe to for barplot
+## Prepare dataframe to for bar plot
 ### Average ASV sequence count across replicate samples
 Average ASV sequence counts across replicate samples, ```COUNT_AVG``` column will now equal the ASV sequence count value across replicates
 ```{r average ASV across replicates, message=FALSE, warning=FALSE}
@@ -346,12 +349,17 @@ gr_counts_avg_wtax <- gr_counts_filter %>%
   summarise(COUNT_AVG = mean(COUNT)) %>%
   as.data.frame
 # dim(gr_counts_filter);dim(gr_counts_avg_wtax)
-
-# Save output and view
-# save(gr_counts_filter,gr_counts_wtax, gr_counts_avg_wtax, file="data-input/GordaRidge-ASVtable-avg-19-08-2020.RData")
 # tmp <- gr_counts_avg_wtax %>% select(Taxa, Taxon_updated, Kingdom, Supergroup, Division, Class, Order, Family, Genus, Species) %>% distinct() %>% data.frame
 # write_delim(tmp, path = "tax-tmp-2.txt", delim = "\t")
+unique(gr_counts_avg_wtax$Taxa)
 ```
+
+
+```{r Save 18S table with taxonomic curation and averages}
+# Save output and view
+save(gr_counts_filter,gr_counts_wtax, gr_counts_avg_wtax, file="data-input/GordaRidge-ASVtable-avg-19-08-2020.RData")
+```
+
 
 
 ### Sum ASV sequence counts to taxonomic level
@@ -365,17 +373,22 @@ gr_counts_avg_TAXA <- gr_counts_avg_wtax %>%
     data.frame
 # View(gr_counts_avg_TAXA)
 # head(gr_counts_avg_TAXA)
-supp_table <- gr_counts_avg_TAXA %>% 
-  pivot_wider(names_from = Taxa, values_from = SUM, values_fill = 0)
-write_delim(supp_table, path = "Suppl-18S-relabun.txt", delim = "\t")
+# supp_table <- gr_counts_avg_TAXA %>% 
+#   pivot_wider(names_from = Taxa, values_from = SUM, values_fill = 0)
+# write_delim(supp_table, path = "Suppl-18S-relabun.txt", delim = "\t")
 ```
+
+```{r}
+unique(gr_counts_avg_TAXA$Taxa)
+```
+
 
 ### Plot factoring and parameters
 ```{r factor for plotting}
 # unique(gr_counts_avg_TAXA$Taxa)
-level2ORDER <- c("Alveolata-Ciliates","Alveolata-Dinoflagellates","Alveolata-Syndiniales","Alveolata-Other","Rhizaria-Cercozoa","Rhizaria-Radiolaria","Rhizaria-Other","Stramenopiles-MAST","Stramenopiles-Ochrophyta","Stramenopiles-Other","Hacrobia-Cryptophyta","Hacrobia-Haptophyta","Hacrobia-Other","Amoebozoa","Excavata","Archaeplastida-Chlorophyta","Archaeplastida-Other","Opisthokonta-Fungi","Opisthokonta-Metazoa","Opisthokonta-Other","Unassigned-Eukaryote")
+level2ORDER <- c("Alveolata-Ciliates","Alveolata-Dinoflagellates","Alveolata-Syndiniales","Alveolata-Other","Rhizaria-Cercozoa","Rhizaria-Radiolaria","Rhizaria-Other","Stramenopiles-MAST","Stramenopiles-Ochrophyta","Stramenopiles-Other","Hacrobia-Cryptophyta","Hacrobia-Haptophyta","Hacrobia-Other","Amoebozoa","Excavata","Apusozoa","Archaeplastida-Chlorophyta","Archaeplastida-Other","Opisthokonta-Fungi","Opisthokonta-Metazoa","Opisthokonta-Other","Unassigned-Eukaryote")
 
-level2color <- c("#f1eef6","#d7b5d8","#df65b0","#ce1256","#fc9272","#ef3b2c","#800026","#fff7bc","#fec44f","#d95f0e","#74c476","#238b45","#00441b","#7fcdbb","#084081","#2b8cbe","#016c59","#bcbddc","#807dba","#54278f","#bdbdbd")
+level2color <- c("#f1eef6","#d7b5d8","#df65b0","#ce1256","#fc9272","#ef3b2c","#800026","#fff7bc","#fec44f","#d95f0e","#74c476","#238b45","#00441b","#7fcdbb","#084081","#c6dbef","#2b8cbe","#016c59","#bcbddc","#807dba","#54278f","#bdbdbd")
 gr_counts_avg_TAXA$LEVEL2ORDER <- factor(gr_counts_avg_TAXA$Taxa, levels=level2ORDER)
 names(level2color)<-level2ORDER
 
@@ -406,7 +419,8 @@ barplot_lev2 <- function(df){
           strip.text = element_blank(),
           legend.title = element_blank()) +
     labs(x="", y="Relative abundance")+
-    facet_grid(.~LOCATION_ORDER, space = "free", scales = "free")
+    facet_grid(.~LOCATION_ORDER, space = "free", scales = "free") +
+    guides(fill=guide_legend(ncol=1))
 }
 ```
 
@@ -417,9 +431,9 @@ rm <- c("Unassigned", "Opisthokonta-Other", "Opisthokonta-Fungi", "Opisthokonta-
 # svg("GR-insitu-tax.svg", w = 8, h = 8)
 barplot_lev2(filter(gr_counts_avg_TAXA, (SAMPLEID %in% insitu & !(Taxa %in% rm))))
 # dev.off()
-
 ```
 
+### Supplementary figure for protistan diversity of all samples
 ```{r figure generation part II, fig.height = 8, fig.width = 20}
 # options(repr.plot.width = 14, repr.plot.height = 8)
 
@@ -434,7 +448,10 @@ plot_grid(
 # dev.off()
 ```
 
-# Import 16S reads 
+# Import 16S ASV table
+
+Import 16S tag-sequence results (ASV table). Import metadata, modify sample names, and conduct taxonomic curation.
+
 ```{r Import reads and metadata}
 # Import metadata for 16S
 ventnames_16 <- read.delim("data-input/ventnames-gordaridge-16S.txt")
@@ -462,6 +479,7 @@ x <- as.character(unique(ventnames$LocationName))
 
 ```
 
+Report stats on 16S tag-sequence data.
 ```{r Stats on original 16S data}
 tmp <- countbac %>%
   select(-all_of(rm)) %>% 
@@ -469,8 +487,8 @@ tmp <- countbac %>%
   left_join(ventnames_16_mod) %>% 
   filter(LocationName %in% x) %>%
   data.frame
-sum(tmp$value)
-length(unique(tmp$Feature.ID))
+sum(tmp$value) # total sequences
+length(unique(tmp$Feature.ID)) # Total ASVs
 ```
 
 ## Format 16S ASV table for plotting
@@ -486,12 +504,11 @@ bac_df_plot <- countbac %>%
   data.frame
 ```
 
-```{r}
+```{r Get stats after quality control}
 # head(bac_df_plot)
-sum(bac_df_plot$value)
-length(unique(bac_df_plot$Feature.ID))
+sum(bac_df_plot$value) # total sequences
+length(unique(bac_df_plot$Feature.ID)) # total ASVs
 ```
-
 
 ### Subset 16S ASVs by abundance
 ```{r subset to include abundant ASVs}
@@ -508,25 +525,11 @@ bac_df_filtered <- bac_df_plot %>%
   data.frame
 ```
 
-### Curate 16S taxonomic assignment
-```{r}
-# colnames(bac_df_plot)
-# head(bac_df_plot)
+## Curate 16S taxonomic assignment
+Here we are curating the 16S taxonomy assignments so we can get an informative look at the in situ bacteria population diversity and biogeography. Places ASVs below a user designated _THRESHOLD_ into the "Other" category - ASVs that make up < X% of the total data set. For this work, a threshold of 0.1% was used. The other curation of taxonomic assignment was to highlight those groups known to inhabit the region or other chemosynthetic habitats.
 
-# ASVs that are within the top 0.1% abundance
-top16s_asvs <- as.character(unique(bac_df_filtered$Feature.ID))
-
-# Subset a dataframe with only ASVs
-asv_curated <- bac_df_plot %>% 
-  select(Feature.ID, Domain, Phylum, Class, Order, Family, Genus, Species) %>% 
-  distinct() %>% data.frame
-# head(asv_curated)
-# head(bac_df_plot)
-```
-
-Here we are curating the 16S taxonomy assignments so we can get an informative look at the in situ bacteria population diversity and biogeography.
-
-```{r Curate 16S taxonomy}
+### Function to modify 16S taxonomy
+```{r Curate 16S taxonomy - function}
 # Add a column for updated taxonomy name
 curate_16s_tax <- function(df, THRESHOLD){
   # List the class and genus level designations that should be named at class level
@@ -559,7 +562,7 @@ curate_16s_tax <- function(df, THRESHOLD){
    return(df2)
 }
 ```
-
+Removal of known Kitome contamination.
 ```{r Modify 16S data}
 # head(bac_df_plot) # Add updated taxa list to this dataframe
 # unique(bac_df_plot$LocationName)
@@ -575,8 +578,8 @@ tax_16s <- bac_wcuratedtax %>%
 ```
 
 
-
-### Average across replicates & sub to taxa
+## Prepare 16S dataframe for plotting
+### Average across replicates and sum to taxa
 ```{r 16S taxonomy average and summary, warning=FALSE, message=FALSE}
 # update exisiting taxonomy
 bac_wcuratedtax_toplot <- bac_wcuratedtax %>% 
@@ -592,19 +595,10 @@ bac_wcuratedtax_toplot <- bac_wcuratedtax %>%
 # unique(bac_wcuratedtax$Tax_update)
 unique(bac_wcuratedtax_toplot$LocationName)
 bac_wcuratedtax_toplot$LOCATION <- factor(bac_wcuratedtax_toplot$LocationName, levels = c("Shallow seawater", "Deep seawater", "Mt Edwards Plume", "Mt Edwards Vent", "Venti Latte Vent", "SirVentsAlot Vent", "Candelabra Vent"))
-#
-# bac_wtax <- bac_df_plot %>% 
-#   left_join(asv_curated_updated) %>% 
-#   filter(!(Genus == "Ralstonia")) %>% 
-#   # Average ASV seq count across replicates
-#   group_by(Feature.ID, LocationName, Tax_update) %>% 
-#   summarise(AVG_count = mean(value)) %>% 
-#   data.frame
-# write_delim(bac_wtax, path = "bac-wtaxassigned-20-08-2020.txt", delim = "\t")
 ```
 
 
-### Make bar plots
+### Generate 16S bar plots
 ```{r 16S barplot}
 
 tax_color<-c("#a50026","#d73027","#f46d43","#fdae61","#fee090","#ffffbf","#40004b","#762a83","#9970ab","#c2a5cf","#e7d4e8","#d9f0d3","#a6dba0","#5aae61","#1b7837","#00441b","#e0f3f8","#abd9e9","#74add1","#4575b4","#313695","#8e0152","#c51b7d","#de77ae","#f1b6da","#fde0ef","#e6f5d0","#b8e186","#7fbc41","#4d9221","#276419","#bababa","#878787","#4d4d4d","#1a1a1a")
@@ -638,6 +632,8 @@ barplot_16s(bac_wcuratedtax_toplot)
 # dev.off()
 ```
 
+## 18S and 16S panel bar plots
+Create Figure 2 for manuscript, combined panel bar plots from 18S and 16S sequence results.
 ```{r Panel plot for 18S and 16S, fig.width=20, fig.height=10}
 euk_key <- get_legend(barplot_lev2(filter(gr_counts_avg_TAXA, (SAMPLEID %in% insitu & !(Taxa %in% rm)))))
 prok_key <- get_legend(barplot_16s(bac_wcuratedtax_toplot))
@@ -653,37 +649,6 @@ plot_grid(
   ncol = 4)
 # dev.off()
 ```
-
-
-
-```{r Plotly code for 16S, warning=FALSE, message=FALSE}
-library(plotly)
-head(bac_wcuratedtax)
-bac_wcuratedtax$LOCATION <- factor(bac_wcuratedtax$LocationName, levels = c("Shallow seawater", "Deep seawater", "Mt Edwards Plume", "Mt Edwards Vent", "Venti Latte Vent", "SirVentsAlot Vent", "Candelabra Vent"))
-relabun_16s <- bac_wcuratedtax %>%
-  #Sum by sample
-  group_by(LOCATION) %>%
-  mutate(total = sum(value)) %>%
-  mutate(RelAbun = 100*(value/total)) %>%
-  data.frame
-# # head(relabun_16s)
-```
-
-
-```{r Interaction 16S plot, fig.height=10, fig.width=14}
-# Interactive plot
-relabun_16s %>% plot_ly(x = ~RelAbun, 
-                            y = ~LOCATION, 
-                            color = ~Tax_update,
-                            name = ~Tax_update,
-                            type = 'bar', 
-                            orientation = 'h',
-                            colors = tax_color,
-                            text = ~Tax_update) %>% 
-  layout(barmode = "stack")
-
-```
-
 
 
 # Ordination analyses
@@ -724,7 +689,7 @@ jac_gr_mat <- vegdist(t(gr_nums_wide), method = "jaccard")
 # PCoA
 pcoa_jac_gr <- pcoa(jac_gr_mat)
 ```
-> Jaccard distance transformation was done on the raw sequences reads. Below is a diagnostic scree plot to determine the appropriate number of axes.
+> Jaccard distance transformation was done on the raw sequences reads, then a Principle Coordinate Analysis was performed. Below is a diagnostic scree plot to determine the appropriate number of axes.
 
 ```{r, fig.height=4, fig.width=6}
 # Extract variances from pcoa, from jaccard calculated dist. metric
@@ -750,10 +715,11 @@ ggplot(jac_var_gr, aes(x = as.numeric(PCaxis), y = PercVar)) +
 # We want to show data in 2 axes - 
 jac_nmds_gr<-metaMDS(jac_gr_mat,k=2,autotransform=FALSE)
 jac_nmds_gr$stress
+# ?metaMDS()
 ```
 
 
-```{r}
+```{r Extract MDS values for each sample combined with metadata}
 ventnames <- read.delim("data-input/ventnames-gordaridge.txt")
 # names(ventnames);head(ventnames)
 colnames(ventnames)[1]<-"SAMPLE"
@@ -773,7 +739,7 @@ names(sample_color)<-sample_order
 ```
 
 ### 18S MDS plot
-```{r, fig.height=6, fig.width=7}
+```{r create 18S MDS plot, fig.height=6, fig.width=7}
 library(ggrepel)
 # options(repr.plot.width = 8, repr.plot.height = 6)
 
@@ -1098,12 +1064,15 @@ plot_grid(pca_18s, pca_16s, nrow = 1, labels = c("a", "b")) # dev.off()
 
 
 # Classify 18S ASVs by distribution
+To test the hypothesis that protistan species may be enriched at vent sites compared to surrounding seawater, 18S-derived ASVs were characterized by distribution. 
+## Import data and classify ASVs
 
 ```{r set envs and import data}
 load("data-input/GordaRidge-ASVtable-avg-19-08-2020.RData",verbose = T)
 unique(gr_counts_avg_wtax[, c("Sampletype", "LocationName")]) #categories to consider
 ```
 
+### Change to binary
 ```{r Change data to binary, warning=FALSE, message=FALSE}
 bin_category <- gr_counts_avg_wtax %>% 
   filter(!(Sampletype == "Control")) %>% 
@@ -1120,7 +1089,7 @@ library(reshape2)
 bin_wide <- dcast(bin_category, Feature.ID ~ sample_tmp) #aggregate to length is OK - counts occurences
 ```
 
-## ID ASVs based on conditions
+### ID ASVs based on presence/absence
 ```{r Iteratively select specific ASVs based on these conditions, warning=FALSE, message=FALSE}
 shared_all <- bin_wide %>% 
   filter((in_situ_Shallow_seawater > 0 & 
@@ -1346,7 +1315,7 @@ asv_key_final$category_final[is.na(asv_key_final$category_fina)] = "Other"
 ```
 
 
-## Combine with original ASV table
+## Combine distribution with original ASV table
 Print report on total ASV counts that fall into each category.
 ```{r Join with 18S count data, warning=FALSE, message=FALSE}
 gr_sorted <- left_join(gr_counts_avg_wtax, asv_key_final) %>%
@@ -1373,7 +1342,7 @@ gr_sorted_summary_plots <- gr_sorted %>%
 
 ```
 
-## Generate table to report at taxa level
+### Include distribution with taxonomic annotations
 ```{r, warning=FALSE, message=FALSE}
 gr_stats_wtax <- gr_sorted %>% 
     group_by(Taxa, category_final) %>% 
@@ -1459,7 +1428,7 @@ plot_grid(totalseq, totalasv,
           totalasv + geom_bar(stat = "identity", color = "black", position = "stack"))
 ```
 
-#### Re-plot with simplified categories
+## Re-plot with simplified categories
 Sort categories into either "Resident" or "Cosmopolitan"
 ```{r Sort categories into simply Resident or Cosmpolitan, warning=FALSE, message=FALSE}
 resident <- c("ASV appears among vent/plume (no BSW)", "ASV appears among vent (no BSW or plume)", "Shared between in situ vent and grazing exp")
@@ -1482,12 +1451,15 @@ tmp2 <- gr_sorted %>%
   summarise(SUM = sum(COUNT_AVG)) %>% 
   mutate(Perc = 100*(SUM/total))
 head(tmp2)
+```
 
-
-# save(gr_sorted, asv_key_final, file = "data-input/GR-countinfo-withASVdistribution.RData")
+```{r Save output dataframes for future use, categorized ASVs}
+save(gr_sorted, asv_key_final, file = "data-input/GR-countinfo-withASVdistribution.RData")
 # head(gr_sorted)
 ```
 
+
+Replot distribution of resident and cosmopolitan ASVs and sequences with simplified categories - main text figure.
 
 ```{r Summarise for plotting, warning=FALSE, message=FALSE}
 gr_sorted_bydist <- gr_sorted %>%
@@ -1568,7 +1540,7 @@ plot_grid(filled_seq + theme(legend.position = "none"),
 # dev.off()
 ```
 
-# 18S bar plots - high resolution
+# 18S bar plots - taxonomic resolution
 ```{r Import data}
 
 load("data-input/GordaRidge-ASVtable-avg-19-08-2020.RData",verbose=T)
@@ -1578,6 +1550,11 @@ load("data-input/GR-countinfo-withASVdistribution.RData", verbose=T)
 
 ## Re-curate taxonomic levels (higher resolution)
 
+```{r View major taxonomic groups}
+unique(gr_sorted$Taxa)
+# View(gr_sorted %>% filter(Taxa == "Alveolata-Ciliates"))
+```
+This is a another function for further refinement of the taxonomic assignments.
 ```{r Refine protistan taxonomic assignment}
 # Add Taxa2 level
 expand_taxa2 <- function(df){
@@ -1593,12 +1570,13 @@ expand_taxa2 <- function(df){
     df$Class <- as.character(df$Class); df$Division <- as.character(df$Division)
     non_ciliate <- c("Alveolata-Syndiniales", "Alveolata-Dinoflagellates", "Alveolata-Other")
     order <- c("Alveolata-Syndiniales", "Alveolata-Dinoflagellates")
-    class <- c("Alveolata-Ciliates", "Stramenopiles-Ochrophyta", "Stramenopiles-MAST", "Opisthokonta-Metazoa", "Opisthokonta-Fungi", "Opisthokonta-Other")
+    class <- c("Alveolata-Ciliates", "Stramenopiles-Ochrophyta", "Stramenopiles-MAST", "Opisthokonta-Metazoa", "Opisthokonta-Fungi", "Opisthokonta-Other", "Rhizaria-Cercozoa", "Rhizaria-Radiolaria")
     df2 <- df %>% 
       mutate(Taxa2 = Taxa) %>% # Duplicate Taxa column
       mutate(Taxa2 = ifelse(Taxa %in% order, Order, Taxa2),
              Taxa2 = ifelse(Taxa %in% class, Class, Taxa2),
              Taxa2 = ifelse(Taxa %in% "Amoebozoa", Division, Taxa2),
+             Taxa2 = ifelse(Taxa %in% "Apusozoa", Division, Taxa2),
              # Curate Ciliates
              Taxa2 = ifelse(Class == "Spirotrichea", paste(Class, Order, sep = "-"), Taxa2),
              Taxa2 = ifelse(grepl("Spirotrichea_", Taxa2), "Spirotrichea-Other", Taxa2),
@@ -1625,8 +1603,8 @@ expand_taxa2 <- function(df){
              Taxa2 = ifelse(grepl("-Other-Other", Taxa2), Taxa, Taxa2)) %>% 
       mutate(Broad_Taxa = Taxa) %>%
       mutate(Broad_Taxa = ifelse(Broad_Taxa %in% non_ciliate, "Alveolata", Broad_Taxa),
-             Broad_Taxa = ifelse(grepl("Rhizaria", Broad_Taxa), "Rhizaria", Broad_Taxa),
-             Broad_Taxa = ifelse(grepl("Stramenopiles", Broad_Taxa), "Stramenopiles", Broad_Taxa),
+             # Broad_Taxa = ifelse(grepl("Rhizaria", Broad_Taxa), "Rhizaria", Broad_Taxa),
+             # Broad_Taxa = ifelse(grepl("Stramenopiles", Broad_Taxa), "Stramenopiles", Broad_Taxa),
              Broad_Taxa = ifelse(grepl("Archaeplastida", Broad_Taxa), "Archaeplastida", Broad_Taxa),
              Broad_Taxa = ifelse(grepl("Hacrobia", Broad_Taxa), "Hacrobia", Broad_Taxa),
              Broad_Taxa = ifelse(grepl("Opisthokonta", Broad_Taxa), "Opisthokonta", Broad_Taxa)) %>% 
@@ -1636,10 +1614,11 @@ expand_taxa2 <- function(df){
  
 ```
 
-```{r}
+```{r Apply taxonomic curation to table}
 # Apply to ASV table
 gr_counts_avg_wtax2 <- expand_taxa2(gr_counts_avg_wtax)
-unique(gr_counts_avg_wtax2$Broad_Taxa)
+# unique(gr_counts_avg_wtax2$Taxa2)
+# unique(gr_counts_avg_wtax2$Broad_Taxa)
 ## Check Ciliate output
 # unique(gr_counts_avg_wtax2 %>% filter(Taxa == "Alveolata-Ciliates") %>% select(Taxa2) %>% distinct())
 ## Check non-ciliate output
@@ -1647,7 +1626,7 @@ unique(gr_counts_avg_wtax2$Broad_Taxa)
 ```
 
 ## Include ASV distribution
-```{r}
+```{r Add ASV distribution information}
 # Add categories & set up for plotting function
 gr_tax_res <- gr_counts_avg_wtax2 %>% 
     left_join(asv_key_final) %>% 
@@ -1660,7 +1639,6 @@ gr_tax_res$RES_COSMO = "Other"
 gr_tax_res$RES_COSMO[gr_tax_res$category_final %in% resident] = "Resident"
 gr_tax_res$RES_COSMO[gr_tax_res$category_final %in% cosmo] = "Cosmopolitan"
 ```
-
 
 ## Plot function
 ```{r factor and plot function}
@@ -1685,13 +1663,14 @@ prepdf_tax_dist <- function(df){
 }
 ```
 
-```{r, warning=FALSE, message=FALSE}
+```{r Reformat data frame to plot, warning=FALSE, message=FALSE}
 gr_tax_res_toplot <- prepdf_tax_dist(gr_tax_res)
 # head(gr_tax_res_toplot[1:2,])
 # View(gr_tax_res_toplot %>% select(Taxa, Taxa2) %>% distinct())
 ```
 
-```{r}
+## Extract ASV richness
+```{r Extract ASV richness data}
 gr_tax_res_richness <- gr_tax_res %>% 
     # Average across replicates
     group_by(Feature.ID, RES_COSMO, SAMPLE, SAMPLEID, Sampletype, LocationName, Broad_Taxa, Taxon_updated, Taxa, Taxa2) %>%
@@ -1705,8 +1684,115 @@ gr_tax_res_richness <- gr_tax_res %>%
 
 
 
+## Tile plot with all taxonomic groups
+
+
+```{r Format for heatmap}
+gr_relAbun_toheat <- gr_tax_res_toplot %>% 
+    # filter(Taxa %in% "Alveolata-Ciliates") %>% 
+    filter(!(RES_COSMO == "Other")) %>% 
+    #Determine relative abundance within samples
+    group_by(Broad_Taxa, SAMPLENAME) %>% 
+    mutate(SUMTOTAL = sum(SUM),
+           RelAbun = 100*(SUM/SUMTOTAL)) %>% 
+    ungroup() %>% 
+    group_by(Taxa, SAMPLENAME) %>% 
+    mutate(SUMTOTAL_TAXA = sum(SUM),
+           RelAbun_Taxa = 100*(SUM/SUMTOTAL_TAXA)) %>% 
+    data.frame
+```
+
+```{r Factor for tile plot}
+# Re-factor
+tax2_order_all <- c("Heterotrichea","Oligohymenophorea","Litostomatea","Karyorelictea","Nassophorea","Phyllopharyngea","Plagiopylea","CONThreeP","Spirotrichea-Choreotrichida","Spirotrichea-Euplotia","Spirotrichea-Hypotrichia","Spirotrichea-Strombidiida","Spirotrichea-Tintinnida","Spirotrichea-Other","Alveolata-Ciliates","Prorocentrales","Gymnodiniales","Peridiniales","Gonyaulacales","Torodiniales","Suessiales","Noctilucales","Alveolata-Dinoflagellates","Dino-Group-I","Dino-Group-II","Dino-Group-IV","Dino-Group-III","Dino-Group-V","Alveolata-Syndiniales","Alveolata-Other","Rhizaria-Cercozoa","Rhizaria-Radiolaria-Acantharea","Rhizaria-Radiolaria-Polycystinea","Rhizaria-Radiolaria","Rhizaria-Other","Stramenopiles-MAST","Bacillariophyta","Dictyochophyceae","Chrysophyceae","MOCH","Bolidophyceae","Pelagophyceae","Synurophyceae","Stramenopiles-Ochrophyta","Stramenopiles-Other","Hacrobia-Cryptophyta","Hacrobia-Haptophyta","Centroheliozoa","Telonemia","Picozoa","Katablepharidophyta","Hacrobia-Other","Amoebozoa","Discoba","Metamonada","Archaeplastida-Chlorophyta","Archaeplastida-Other","Unassigned-Eukaryote","Basidiomycota","Chytridiomycota","Opisthokonta-Fungi","Ascomycota","Microsporidiomycota","Cnidaria","Craniata","Mollusca","Nemertea","Opisthokonta-Metazoa","Annelida","Arthropoda","Rotifera","Urochordata","Nematoda","Ctenophora","Echinodermata","Platyhelminthes","Porifera","Gastrotricha","Opisthokonta-Other","Choanoflagellatea","Ichthyosporea","Filasterea")
+gr_relAbun_toheat$TAXA2_ORDER <- factor(gr_relAbun_toheat$Taxa2, levels = tax2_order_all)
+
+gr_relAbun_toheat$Broad_ORDER <- factor(gr_relAbun_toheat$Broad_Taxa, levels = c("Alveolata-Ciliates", "Alveolata", "Rhizaria-Cercozoa", "Rhizaria-Radiolaria", "Rhizaria-Other", "Stramenopiles-MAST", "Stramenopiles-Ochrophyta", "Stramenopiles-Other", "Hacrobia", "Amoebozoa", "Excavata", "Apusozoa", "Archaeplastida", "Opisthokonta", "Unassigned-Eukaryote"))
+broad_color <- c("#ae017e","#bd0026",
+                 "#ec7014","#ec7014",
+                 "#238b45","#238b45",
+                 "#016c59","#4d004b","#08519c","#54278f","#810f7c")
+```
 
 ```{r}
+unique(gr_relAbun_toheat$Broad_Taxa)
+# rhiz <- c("Rhizaria-Radiolaria","Rhizaria-Cercozoa", "Rhizaria-Other")
+# View(gr_relAbun_toheat %>% filter(Taxa %in%))
+```
+
+
+```{r tile plot code, fig.width=8, fig.height=10}
+    # Make geom tile plot
+tile_tax <- ggplot(gr_relAbun_toheat, aes(x = SAMPLENAME, alpha = RelAbun, fill = Broad_ORDER, y = Taxa2)) +
+    geom_tile(color = "white") +
+    scale_fill_manual(values = broad_color) +
+    theme(legend.position = "right",
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank(),
+          axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, color = "black", size = 8),
+          axis.text.y = element_text(color="black", size = 8),
+          strip.background = element_blank(),
+          # strip.text.y = element_text(angle = 0),
+          legend.title = element_blank()) +
+    labs(x="", y="")+
+    facet_grid(Broad_ORDER ~ RES_COSMO, space = "free", scales = "free")
+
+rm <- c("Opisthokonta-Fungi", "Opisthokonta-Other", "Opisthokonta-Metazoa", "Stramenopiles-Other", "Rhizaria-Other")
+
+
+tile_tax %+% subset(gr_relAbun_toheat, !(Taxa %in% rm | Taxa == "Unassigned-Eukaryote"))
+```
+
+
+
+```{r Plot bubbles as richness, fig.width=4, fig.height=10}
+gr_tax_res_richness$Broad_ORDER <- factor(gr_tax_res_richness$Broad_Taxa, levels = c("Alveolata-Ciliates", "Alveolata", "Rhizaria-Cercozoa", "Rhizaria-Radiolaria", "Rhizaria-Other", "Stramenopiles-MAST", "Stramenopiles-Ochrophyta", "Stramenopiles-Other", "Hacrobia", "Amoebozoa", "Excavata", "Apusozoa", "Archaeplastida", "Opisthokonta", "Unassigned-Eukaryote"))
+
+
+rm <- c("Opisthokonta-Fungi", "Opisthokonta-Other", "Opisthokonta-Metazoa", "Stramenopiles-Other", "Rhizaria-Other")
+
+# bubble plot richness
+richness_df <- gr_tax_res_richness %>% 
+  filter(!(RES_COSMO == "Other")) %>% 
+  filter(!(Taxa %in% rm | Taxa == "Unassigned-Eukaryote")) %>% 
+  data.frame
+#
+richness_plot <- ggplot(richness_df, aes(x = RES_COSMO, y = Taxa2)) +
+    geom_point(aes(size = RICHNESS)) +
+    scale_size_continuous(range = c(0.2, 3)) +
+    facet_grid(Broad_ORDER~RES_COSMO, space = "free", scales = "free") +
+    theme(legend.position = "right",
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank(),
+          axis.text.x = element_text(angle = 90, size = 8),
+          axis.text.y = element_text(size = 8),
+          strip.text = element_blank(),
+          strip.background = element_blank(),
+          legend.title = element_blank()) +
+    labs(x="", y="")
+```
+
+```{r, fig.width=22, fig.height=10}
+tile <- get_legend(tile_tax %+% subset(gr_relAbun_toheat, !(Taxa %in% rm | Taxa == "Unassigned-Eukaryote")))
+rich <- get_legend(richness_plot)
+
+svg("tile_bubble_plot.svg", w = 22, h = 10)
+plot_grid(tile_tax %+% subset(gr_relAbun_toheat, !(Taxa %in% rm | Taxa == "Unassigned-Eukaryote")) + theme(legend.position = "none"),
+          richness_plot + theme(legend.position = "none"),
+          tile, rich, ncol = 4,
+          axis = "tb")
+dev.off()
+```
+
+## Supplementary plots
+
+## Supplementary bar plots
+Generate additional supplementary plots as bar plot.
+```{r Ciliate diversity as barplot}
 # Factor
 ciliate_order <- c("Heterotrichea","Oligohymenophorea","Litostomatea","Karyorelictea","Nassophorea","Phyllopharyngea","Plagiopylea","CONThreeP","Spirotrichea-Choreotrichida","Spirotrichea-Euplotia","Spirotrichea-Hypotrichia","Spirotrichea-Strombidiida","Spirotrichea-Tintinnida","Spirotrichea-Other","Alveolata-Ciliates")
 gr_tax_res_toplot$CILIATE_ORDER <- factor(gr_tax_res_toplot$Taxa2, levels = ciliate_order)
@@ -1739,12 +1825,10 @@ ciliate_plot <- gr_tax_res_toplot %>%
 ciliate_plot
 ```
 
-## Plot non-ciliate distribution
-
 Repeat high-resolution look at protistan biogeography, but without ciliate groups.
 
 ```{r}
-# Heterotrophs - non-ciliate
+# Other protistan taxa - non-cilaite
 tax_order <- c("Prorocentrales","Gymnodiniales","Peridiniales","Gonyaulacales","Torodiniales","Suessiales","Noctilucales","Alveolata-Dinoflagellates","Dino-Group-I","Dino-Group-II","Dino-Group-IV","Dino-Group-III","Dino-Group-V","Alveolata-Syndiniales","Alveolata-Other","Rhizaria-Cercozoa","Rhizaria-Radiolaria-Acantharea","Rhizaria-Radiolaria-Polycystinea","Rhizaria-Radiolaria","Rhizaria-Other","Stramenopiles-MAST","Bacillariophyta","Dictyochophyceae","Chrysophyceae","MOCH","Bolidophyceae","Pelagophyceae","Synurophyceae","Stramenopiles-Ochrophyta","Stramenopiles-Other","Hacrobia-Cryptophyta","Hacrobia-Haptophyta","Centroheliozoa","Telonemia","Picozoa","Katablepharidophyta","Hacrobia-Other","Amoebozoa","Discoba","Metamonada","Archaeplastida-Chlorophyta","Archaeplastida-Other","Unassigned-Eukaryote","Basidiomycota","Chytridiomycota","Opisthokonta-Fungi","Ascomycota","Microsporidiomycota","Cnidaria","Craniata","Mollusca","Nemertea","Opisthokonta-Metazoa","Annelida","Arthropoda","Rotifera","Urochordata","Nematoda","Ctenophora","Echinodermata","Platyhelminthes","Porifera","Gastrotricha","Opisthokonta-Other","Choanoflagellatea","Ichthyosporea","Filasterea")
 color_order <- c("#7f0000","#b30000","#d7301f","#ef6548","#fc8d59","#fdbb84","#fdd49e","#fee8c8","#deebf7","#9ecae1","#6baed6","#2171b5","#08519c","#08306b","#ffffff","#800026","#bd0026","#e31a1c","#fc4e2a","#fd8d3c","#feb24c","#fed976","#ffeda0","#ffffcc","#fec44f","#fe9929","#ec7014","#cc4c02","#993404","#662506","#e5f5e0","#a1d99b","#74c476","#41ab5d","#238b45","#006d2c","#00441b","#edf8b1","#7fcdbb","#1d91c0","#4292c6","#08519c","#f0f0f0","#4d004b","#810f7c","#88419d","#8c6bb1","#8c96c6","#9ebcda","#bfd3e6","#e0ecf4","#f7fcfd","#67001f","#980043","#ce1256","#e7298a","#df65b0","#c994c7","#d4b9da","#e7e1ef","#014636","#016c59","#02818a","#3690c0","#67a9cf","#a6bddb","#d0d1e6")
 gr_tax_res_toplot$TAXORDER <- factor(gr_tax_res_toplot$Taxa2, levels = tax_order)
@@ -1781,8 +1865,6 @@ hets_plot %+% subset(gr_tax_res_toplot, !(RES_COSMO == "Other") & (Taxa %in% met
 # dev.off()
 ```
 
-
-
 ## Generate full panel plot
 ```{r, fig.width=20, fig.height=8}
 # options(repr.plot.width = 18, repr.plot.height = 8)
@@ -1794,121 +1876,33 @@ hets_plot %+% subset(gr_tax_res_toplot, !(RES_COSMO == "Other") & (Taxa %in% met
 #           ciliate_key,
 #          hets_plot %+% subset(gr_tax_res_toplot, !(RES_COSMO == "Other") & (!(Taxa %in% metaz)) & (!(Taxa == "Alveolata-Ciliates"))) + theme(legend.position = "none"),
 #          other_key,
-#          ncol = 4, labels = c("a","", "b", ""), rel_widths = c(1, 0.2, 1, 0.2)) 
+#          ncol = 4, labels = c("a","", "b", ""), rel_widths = c(1, 0.2, 1, 0.2))
 # dev.off()
 ```
 
-## Tile plot with all taxonomic groups
 
-```{r}
-head(gr_tax_res_toplot)
-# View(unique(gr_tax_res_toplot$Broad_Taxa))
-```
-
-```{r}
-gr_relAbun_toheat <- gr_tax_res_toplot %>% 
-    # filter(Taxa %in% "Alveolata-Ciliates") %>% 
-    filter(!(RES_COSMO == "Other")) %>% 
-    #Determine relative abundance within samples
-    group_by(Broad_Taxa, SAMPLENAME) %>% 
-    mutate(SUMTOTAL = sum(SUM),
-           RelAbun = 100*(SUM/SUMTOTAL)) %>% 
-    data.frame
-
-# Re-factor
-tax2_order_all <- c("Heterotrichea","Oligohymenophorea","Litostomatea","Karyorelictea","Nassophorea","Phyllopharyngea","Plagiopylea","CONThreeP","Spirotrichea-Choreotrichida","Spirotrichea-Euplotia","Spirotrichea-Hypotrichia","Spirotrichea-Strombidiida","Spirotrichea-Tintinnida","Spirotrichea-Other","Alveolata-Ciliates","Prorocentrales","Gymnodiniales","Peridiniales","Gonyaulacales","Torodiniales","Suessiales","Noctilucales","Alveolata-Dinoflagellates","Dino-Group-I","Dino-Group-II","Dino-Group-IV","Dino-Group-III","Dino-Group-V","Alveolata-Syndiniales","Alveolata-Other","Rhizaria-Cercozoa","Rhizaria-Radiolaria-Acantharea","Rhizaria-Radiolaria-Polycystinea","Rhizaria-Radiolaria","Rhizaria-Other","Stramenopiles-MAST","Bacillariophyta","Dictyochophyceae","Chrysophyceae","MOCH","Bolidophyceae","Pelagophyceae","Synurophyceae","Stramenopiles-Ochrophyta","Stramenopiles-Other","Hacrobia-Cryptophyta","Hacrobia-Haptophyta","Centroheliozoa","Telonemia","Picozoa","Katablepharidophyta","Hacrobia-Other","Amoebozoa","Discoba","Metamonada","Archaeplastida-Chlorophyta","Archaeplastida-Other","Unassigned-Eukaryote","Basidiomycota","Chytridiomycota","Opisthokonta-Fungi","Ascomycota","Microsporidiomycota","Cnidaria","Craniata","Mollusca","Nemertea","Opisthokonta-Metazoa","Annelida","Arthropoda","Rotifera","Urochordata","Nematoda","Ctenophora","Echinodermata","Platyhelminthes","Porifera","Gastrotricha","Opisthokonta-Other","Choanoflagellatea","Ichthyosporea","Filasterea")
-gr_relAbun_toheat$TAXA2_ORDER <- factor(gr_relAbun_toheat$Taxa2, levels = tax2_order_all)
-
-gr_relAbun_toheat$Broad_ORDER <- factor(gr_relAbun_toheat$Broad_Taxa, levels = c("Alveolata-Ciliates", "Alveolata", "Rhizaria", "Stramenopiles", "Hacrobia", "Amoebozoa", "Excavata", "Archaeplastida", "Opisthokonta", "Unassigned-Eukaryote"))
-broad_color <- c("#ae017e","#bd0026","#ec7014","#238b45","#016c59","#08519c","#54278f","#810f7c")
-```
-
-```{r tile plot code, fig.width=8, fig.height=10}
-    # Make geom tile plot
-tile_tax <- ggplot(gr_relAbun_toheat, aes(x = SAMPLENAME, alpha = RelAbun, fill = Broad_ORDER, y = Taxa2)) +
-    geom_tile(color = "white") +
-    scale_fill_manual(values = broad_color) +
-    theme(legend.position = "right",
-          panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.border = element_blank(),
-          panel.background = element_blank(),
-          axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, color = "black", size = 8),
-          axis.text.y = element_text(color="black", size = 8),
-          strip.background = element_blank(),
-          legend.title = element_blank()) +
-    labs(x="", y="")+
-    facet_grid(Broad_ORDER~RES_COSMO, space = "free", scales = "free")
-
-metaz <- c("Opisthokonta-Fungi", "Opisthokonta-Other", "Opisthokonta-Metazoa")
-
-
-tile_tax %+% subset(gr_relAbun_toheat, !(Taxa %in% metaz | Taxa == "Unassigned-Eukaryote"))
-```
-
-
-
-```{r, fig.width=4, fig.height=10}
-gr_tax_res_richness$Broad_ORDER <- factor(gr_tax_res_richness$Broad_Taxa, levels = c("Alveolata-Ciliates", "Alveolata", "Rhizaria", "Stramenopiles", "Hacrobia", "Amoebozoa", "Excavata", "Archaeplastida", "Opisthokonta", "Unassigned-Eukaryote"))
-# head(gr_tax_res_richness)
-# bubble plot richness
-richness_df <- gr_tax_res_richness %>% 
-  filter(!(RES_COSMO == "Other")) %>% 
-  filter(!(Taxa %in% metaz | Taxa == "Unassigned-Eukaryote")) %>% 
-  data.frame
-#
-richness_plot <- ggplot(richness_df, aes(x = RES_COSMO, y = Taxa2)) +
-    geom_point(aes(size = RICHNESS)) +
-    scale_size_continuous(range = c(0.2, 3)) +
-    facet_grid(Broad_ORDER~RES_COSMO, space = "free", scales = "free") +
-    theme(legend.position = "right",
-          panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.border = element_blank(),
-          panel.background = element_blank(),
-          axis.text.x = element_text(angle = 90, size = 8),
-          axis.text.y = element_text(size = 8),
-          strip.text = element_blank(),
-          strip.background = element_blank(),
-          legend.title = element_blank()) +
-    labs(x="", y="")
-```
-
-```{r, fig.width=22, fig.height=10}
-tile <- get_legend(tile_tax %+% subset(gr_relAbun_toheat, !(Taxa %in% metaz | Taxa == "Unassigned-Eukaryote")))
-rich <- get_legend(richness_plot)
-
-# svg("tile_bubble_plot.svg", w = 22, h = 10)
-plot_grid(tile_tax %+% subset(gr_relAbun_toheat, !(Taxa %in% metaz | Taxa == "Unassigned-Eukaryote")) + theme(legend.position = "none"),
-          richness_plot + theme(legend.position = "none"),
-          tile, rich, ncol = 4,
-          axis = "b")
-# dev.off()
-```
-
-## Supplementary plots
 ```{r, fig.width=7, fig.height=6}
-tax_order <- c("Prorocentrales","Gymnodiniales","Peridiniales","Gonyaulacales","Torodiniales","Suessiales","Noctilucales","Alveolata-Dinoflagellates","Dino-Group-I","Dino-Group-II","Dino-Group-IV","Dino-Group-III","Dino-Group-V","Alveolata-Syndiniales","Alveolata-Other","Rhizaria-Cercozoa","Rhizaria-Radiolaria-Acantharea","Rhizaria-Radiolaria-Polycystinea","Rhizaria-Radiolaria","Rhizaria-Other","Stramenopiles-MAST","Bacillariophyta","Dictyochophyceae","Chrysophyceae","MOCH","Bolidophyceae","Pelagophyceae","Synurophyceae","Stramenopiles-Ochrophyta","Stramenopiles-Other","Hacrobia-Cryptophyta","Hacrobia-Haptophyta","Centroheliozoa","Telonemia","Picozoa","Katablepharidophyta","Hacrobia-Other","Amoebozoa","Discoba","Metamonada","Archaeplastida-Chlorophyta","Archaeplastida-Other","Unassigned-Eukaryote","Basidiomycota","Chytridiomycota","Opisthokonta-Fungi","Ascomycota","Microsporidiomycota","Cnidaria","Craniata","Mollusca","Nemertea","Opisthokonta-Metazoa","Annelida","Arthropoda","Rotifera","Urochordata","Nematoda","Ctenophora","Echinodermata","Platyhelminthes","Porifera","Gastrotricha","Opisthokonta-Other","Choanoflagellatea","Ichthyosporea","Filasterea")
-color_order <- c("#7f0000","#b30000","#d7301f","#ef6548","#fc8d59","#fdbb84","#fdd49e","#fee8c8","#deebf7","#9ecae1","#6baed6","#2171b5","#08519c","#08306b","#ffffff","#800026","#bd0026","#e31a1c","#fc4e2a","#fd8d3c","#feb24c","#fed976","#ffeda0","#ffffcc","#fec44f","#fe9929","#ec7014","#cc4c02","#993404","#662506","#e5f5e0","#a1d99b","#74c476","#41ab5d","#238b45","#006d2c","#00441b","#edf8b1","#7fcdbb","#1d91c0","#4292c6","#08519c","#f0f0f0","#4d004b","#810f7c","#88419d","#8c6bb1","#8c96c6","#9ebcda","#bfd3e6","#e0ecf4","#f7fcfd","#67001f","#980043","#ce1256","#e7298a","#df65b0","#c994c7","#d4b9da","#e7e1ef","#014636","#016c59","#02818a","#3690c0","#67a9cf","#a6bddb","#d0d1e6")
-metaz <- c("Opisthokonta-Metazoa", "Opisthokonta-Fungi", "Opisthokonta-Other")
-
-supp_plot <- ggplot(gr_tax_res_toplot, aes(x = SAMPLENAME, y = SUM, fill = Taxa2)) +
-    geom_bar(stat = "identity", position = "fill", color = "black") +
-    scale_fill_manual(values = color_order) +
-    scale_y_continuous(expand = c(0,0))+
-    theme(legend.position = "right",
-          panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.border = element_blank(),
-          panel.background = element_blank(),
-          axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, color = "black", face="bold", size = 12),
-          axis.text.y = element_text(color="black", face="bold", size = 12),
-          strip.text.x = element_blank(),
-          strip.background = element_blank(),
-          legend.title = element_blank()) +
-    labs(x="", y="Relative abundance")+
-    facet_grid(RES_COSMO~LOCATION_ORDER, space = "free", scales = "free")
-supp_plot %+% subset(gr_tax_res_toplot, !(RES_COSMO == "Other") & Taxa %in% metaz)
+# tax_order <- c("Prorocentrales","Gymnodiniales","Peridiniales","Gonyaulacales","Torodiniales","Suessiales","Noctilucales","Alveolata-Dinoflagellates","Dino-Group-I","Dino-Group-II","Dino-Group-IV","Dino-Group-III","Dino-Group-V","Alveolata-Syndiniales","Alveolata-Other","Rhizaria-Cercozoa","Rhizaria-Radiolaria-Acantharea","Rhizaria-Radiolaria-Polycystinea","Rhizaria-Radiolaria","Rhizaria-Other","Stramenopiles-MAST","Bacillariophyta","Dictyochophyceae","Chrysophyceae","MOCH","Bolidophyceae","Pelagophyceae","Synurophyceae","Stramenopiles-Ochrophyta","Stramenopiles-Other","Hacrobia-Cryptophyta","Hacrobia-Haptophyta","Centroheliozoa","Telonemia","Picozoa","Katablepharidophyta","Hacrobia-Other","Amoebozoa","Discoba","Metamonada","Archaeplastida-Chlorophyta","Archaeplastida-Other","Unassigned-Eukaryote","Basidiomycota","Chytridiomycota","Opisthokonta-Fungi","Ascomycota","Microsporidiomycota","Cnidaria","Craniata","Mollusca","Nemertea","Opisthokonta-Metazoa","Annelida","Arthropoda","Rotifera","Urochordata","Nematoda","Ctenophora","Echinodermata","Platyhelminthes","Porifera","Gastrotricha","Opisthokonta-Other","Choanoflagellatea","Ichthyosporea","Filasterea")
+# color_order <- c("#7f0000","#b30000","#d7301f","#ef6548","#fc8d59","#fdbb84","#fdd49e","#fee8c8","#deebf7","#9ecae1","#6baed6","#2171b5","#08519c","#08306b","#ffffff","#800026","#bd0026","#e31a1c","#fc4e2a","#fd8d3c","#feb24c","#fed976","#ffeda0","#ffffcc","#fec44f","#fe9929","#ec7014","#cc4c02","#993404","#662506","#e5f5e0","#a1d99b","#74c476","#41ab5d","#238b45","#006d2c","#00441b","#edf8b1","#7fcdbb","#1d91c0","#4292c6","#08519c","#f0f0f0","#4d004b","#810f7c","#88419d","#8c6bb1","#8c96c6","#9ebcda","#bfd3e6","#e0ecf4","#f7fcfd","#67001f","#980043","#ce1256","#e7298a","#df65b0","#c994c7","#d4b9da","#e7e1ef","#014636","#016c59","#02818a","#3690c0","#67a9cf","#a6bddb","#d0d1e6")
+# metaz <- c("Opisthokonta-Metazoa", "Opisthokonta-Fungi", "Opisthokonta-Other")
+# 
+# supp_plot <- ggplot(gr_tax_res_toplot, aes(x = SAMPLENAME, y = SUM, fill = Taxa2)) +
+#     geom_bar(stat = "identity", position = "fill", color = "black") +
+#     scale_fill_manual(values = color_order) +
+#     scale_y_continuous(expand = c(0,0))+
+#     theme(legend.position = "right",
+#           panel.grid.major = element_blank(),
+#           panel.grid.minor = element_blank(),
+#           panel.border = element_blank(),
+#           panel.background = element_blank(),
+#           axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, color = "black", face="bold", size = 12),
+          # axis.text.y = element_text(color="black", face="bold", size = 12),
+#           strip.text.x = element_blank(),
+#           strip.background = element_blank(),
+#           legend.title = element_blank()) +
+#     labs(x="", y="Relative abundance")+
+#     facet_grid(RES_COSMO~LOCATION_ORDER, space = "free", scales = "free")
+# supp_plot %+% subset(gr_tax_res_toplot, !(RES_COSMO == "Other") & Taxa %in% metaz)
 ```
 
 ```{r Supplementary plot - SirVentsAlot}
@@ -1926,8 +1920,9 @@ sirvents <- gr_tax_res %>%
          RelAbun = 100*(SUM/SUMTOTAL)) %>% 
   unite(SAMPLE_REPS, LOCATION_SPECIFIC, SAMPLE, sep = " ", remove = FALSE) %>% 
   data.frame
-head(sirvents)
+# head(sirvents)
 ```
+
 
 ```{r factoring}
 # Factoring
@@ -1937,12 +1932,14 @@ sirvents$SAMPLEID_ORDER <- factor(sirvents$SAMPLEID, levels = c("sterivex", "SUP
 tax2_order_all <- c("Heterotrichea","Oligohymenophorea","Litostomatea","Karyorelictea","Nassophorea","Phyllopharyngea","Plagiopylea","CONThreeP","Spirotrichea-Choreotrichida","Spirotrichea-Euplotia","Spirotrichea-Hypotrichia","Spirotrichea-Strombidiida","Spirotrichea-Tintinnida","Spirotrichea-Other","Alveolata-Ciliates","Prorocentrales","Gymnodiniales","Peridiniales","Gonyaulacales","Torodiniales","Suessiales","Noctilucales","Alveolata-Dinoflagellates","Dino-Group-I","Dino-Group-II","Dino-Group-IV","Dino-Group-III","Dino-Group-V","Alveolata-Syndiniales","Alveolata-Other","Rhizaria-Cercozoa","Rhizaria-Radiolaria-Acantharea","Rhizaria-Radiolaria-Polycystinea","Rhizaria-Radiolaria","Rhizaria-Other","Stramenopiles-MAST","Bacillariophyta","Dictyochophyceae","Chrysophyceae","MOCH","Bolidophyceae","Pelagophyceae","Synurophyceae","Stramenopiles-Ochrophyta","Stramenopiles-Other","Hacrobia-Cryptophyta","Hacrobia-Haptophyta","Centroheliozoa","Telonemia","Picozoa","Katablepharidophyta","Hacrobia-Other","Amoebozoa","Discoba","Metamonada","Archaeplastida-Chlorophyta","Archaeplastida-Other","Unassigned-Eukaryote","Basidiomycota","Chytridiomycota","Opisthokonta-Fungi","Ascomycota","Microsporidiomycota","Cnidaria","Craniata","Mollusca","Nemertea","Opisthokonta-Metazoa","Annelida","Arthropoda","Rotifera","Urochordata","Nematoda","Ctenophora","Echinodermata","Platyhelminthes","Porifera","Gastrotricha","Opisthokonta-Other","Choanoflagellatea","Ichthyosporea","Filasterea")
 sirvents$TAXA2_ORDER <- factor(sirvents$Taxa2, levels = tax2_order_all)
 
-sirvents$Broad_ORDER <- factor(sirvents$Broad_Taxa, levels = c("Alveolata-Ciliates", "Alveolata", "Rhizaria", "Stramenopiles", "Hacrobia", "Amoebozoa", "Excavata", "Archaeplastida", "Opisthokonta", "Unassigned-Eukaryote"))
-broad_color <- c("#ae017e","#bd0026","#ec7014","#238b45","#016c59","#08519c","#54278f","#810f7c")
-
+sirvents$Broad_ORDER <- factor(sirvents$Broad_Taxa, levels = c("Alveolata-Ciliates", "Alveolata", "Rhizaria-Cercozoa", "Rhizaria-Radiolaria", "Rhizaria-Other", "Stramenopiles-MAST", "Stramenopiles-Ochrophyta", "Stramenopiles-Other", "Hacrobia", "Amoebozoa", "Excavata", "Apusozoa", "Archaeplastida", "Opisthokonta", "Unassigned-Eukaryote"))
+broad_color <- c("#ae017e","#bd0026",
+                 "#ec7014","#ec7014",
+                 "#238b45","#238b45",
+                 "#016c59","#4d004b","#08519c","#54278f","#810f7c")
 ```
 
-```{r plot SirVentsalot replicates - supplementary, fig.width=5, fig.height=10}
+```{r plot SirVentsalot replicates - supplementary}
 sirvents_plot <- ggplot(sirvents, aes(x = SAMPLE_REPS, alpha = RelAbun, fill = Broad_ORDER, y = Taxa2)) +
     geom_tile(color = "white") +
     scale_fill_manual(values = broad_color) +
@@ -1958,10 +1955,14 @@ sirvents_plot <- ggplot(sirvents, aes(x = SAMPLE_REPS, alpha = RelAbun, fill = B
     labs(x="", y="")+
     facet_grid(Broad_ORDER~RES_COSMO, space = "free", scales = "free")
 
-metaz <- c("Opisthokonta-Fungi", "Opisthokonta-Other", "Opisthokonta-Metazoa")
 
+rm <- c("Opisthokonta-Fungi", "Opisthokonta-Other", "Opisthokonta-Metazoa", "Stramenopiles-Other", "Rhizaria-Other")
+```
 
-sirvents_plot %+% subset(sirvents, !(Taxa == "Unassigned-Eukaryote"))
+```{r Plot sirvents a lot replicates, fig.width=5.5, fig.height=10}
+# svg("sirventsalot-replicates.svg", w = 5.5, h = 10)
+sirvents_plot %+% subset(sirvents, !(Taxa == "Unassigned-Eukaryote" | Broad_ORDER %in% rm))
+# dev.off()
 
 ```
 
@@ -2150,7 +2151,39 @@ save(bac_phy, euk_phy, file = "phyloseq-18s-16s.RData")
 
 ### Run SpiecEasi
 
-See slurm script right now, requires HPC.
+Run SpiecEasi separately and import output tables to filter significant interactions.
+
+> Below command was run on an HPC, while other commands can be run locally. Save output and bring locally below.
+
+```{r SpiecEasi Commands}
+## Cross Domain approach
+# se_GR <- spiec.easi(list(bac_phy, euk_phy), method = "mb",
+#                     nlambda = 40, lambda.min.ratio = 1e-2,
+#                     pulsar.params = list(thresh = 0.05))
+
+## Check output
+# getStability(se_GR)
+# sum(getRefit(se_GR))/2
+
+## Extract weighted matrix
+# se.beta <- as.matrix(symBeta(getOptBeta(se_GR))) 
+# df_beta <- as.data.frame(se.beta)  
+
+## Extract adajency matrix
+# adj.mat <- getRefit(se_GR) 
+# df_adj <- as.data.frame(as.matrix(adj.mat))
+
+## Assign names from original dataframes
+# colnames(df_beta) <- colnames(se_GR$est$data)
+# colnames(df_adj) <- colnames(se_GR$est$data) 
+# row.names(df_adj) <- colnames(se_GR$est$data)
+# row.names(df_beta) <- colnames(se_GR$est$data)     
+
+## Save output
+# save(df_adj, df_beta, se_GR, file = "gr-spieceasi-output-20-08-2020.RData")
+
+```
+
 
 
 ### Process SpiecEasi output
@@ -2161,9 +2194,6 @@ load("data-input/gr-spieceasi-output-20-08-2020.RData", verbose = T)
 # colnames(df_adj)
 # head(euk_data_interact)
 # head(bac_data_interact)
-```
-```{r}
-head(gr_tax_res)
 ```
 
 ```{r Make taxonomy keys}
@@ -2189,6 +2219,7 @@ tax_key_se <- euk_data_interact %>%
   data.frame
 # View(tax_key_se)
 ```
+
 ```{r Reformat Spiec Easi output}
 
 reformat_spieceasi <- function(df_in){
@@ -2215,6 +2246,11 @@ reformat_spieceasi <- function(df_in){
 
 df_adj_long <- reformat_spieceasi(df_adj)
 df_beta_long <- reformat_spieceasi(df_beta)
+```
+```{r}
+length(se_GR$lambda)
+# Lambda - larger lambda = denser?
+# 
 ```
 
 ### Evaluate statistical parameters determine weight threshold
@@ -2262,17 +2298,26 @@ length(unique(tax_sum_interact$INTERACTION)) #Total significant interactions bet
 ```
 
 ```{r}
-# head(tax_sum_interact)
+head(tax_sum_interact)
 unique(tax_sum_interact$TAX_SHORT.A)
 # Table of significant interactions
 summary_sig_interactions <- tax_sum_interact %>% 
   select(ASV_18S, ASV_16S, TAX_SHORT.A, COUNT) %>% 
-  distinct() %>% 
+  # distinct() %>%
   group_by(TAX_SHORT.A) %>% 
-  summarise(COUNT_18S_ASVs = n_distinct(ASV_18S)) %>% 
+  summarise(UNIQUE_18S_ASVs = n_distinct(ASV_18S),
+            TOTAL_18S_ASVs = sum(COUNT)) %>% 
   data.frame
 # View(summary_sig_interactions) # Included in Table 2
-  
+
+summary_sig_interactions_2 <- tax_sum_interact %>% 
+  select(ASV_18S, ASV_16S, TAX_SHORT.A, EUK_2.A, COUNT) %>% 
+  # distinct() %>%
+  group_by(TAX_SHORT.A, EUK_2.A) %>% 
+  summarise(UNIQUE_18S_ASVs = n_distinct(ASV_18S),
+            TOTAL_18S_ASVs = sum(COUNT)) %>% 
+  data.frame
+# View(summary_sig_interactions_2)  
 ```
 
 ### Plot distribution of interactions
@@ -2285,8 +2330,11 @@ putative_prey <- tax_sum_interact %>%
   summarise(count_sum = sum(COUNT)) %>% 
   data.frame
 
-putative_prey$BROAD_TAXA_ORDER <- factor(putative_prey$Broad_Taxa.A, levels = c("Alveolata-Ciliates", "Alveolata", "Rhizaria", "Stramenopiles", "Hacrobia", "Amoebozoa", "Excavata", "Archaeplastida", "Opisthokonta", "Unassigned-Eukaryote"))
-broad_color <- c("#ae017e","#bd0026","#ec7014","#238b45","#016c59","#08519c","#54278f","#810f7c")
+putative_prey$BROAD_TAXA_ORDER <- factor(putative_prey$Broad_Taxa.A, levels = c("Alveolata-Ciliates", "Alveolata", "Rhizaria-Cercozoa", "Rhizaria-Radiolaria", "Rhizaria-Other", "Stramenopiles-MAST", "Stramenopiles-Ochrophyta", "Stramenopiles-Other", "Hacrobia", "Amoebozoa", "Excavata", "Apusozoa", "Archaeplastida", "Opisthokonta", "Unassigned-Eukaryote"))
+broad_color <- c("#ae017e","#bd0026",
+                 "#ec7014","#ec7014",
+                 "#238b45","#238b45",
+                 "#016c59","#4d004b","#08519c","#54278f","#810f7c")
 
 # head(putative_prey)
 ```
@@ -2299,7 +2347,7 @@ ggplot(putative_prey,
        aes(axis1 = TAX_SHORT.A, axis2 = TAX_SHORT.B, y = count_sum)) +
   scale_x_discrete(limits = c("TAX_SHORT.A", "TAX_SHORT.B"), expand = c(.2, .05)) +
   # xlab("Demographic") +
-  geom_alluvium(aes(fill = Broad_Taxa.A), alpha = 0.5) +
+  geom_alluvium(aes(fill = Broad_Taxa.A), alpha = 0.7) +
   scale_fill_manual(values = broad_color) +
   geom_stratum(size = 0.5) +
   geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 3) +
@@ -2321,10 +2369,17 @@ putative_prey_dist <- tax_sum_interact %>%
   group_by(Broad_Taxa.A, TAX_SHORT.A, TAX_SHORT.B, EUK_DIST.A) %>% 
   summarise(count_sum = sum(COUNT)) %>% 
   data.frame
-broad_order <- c("Alveolata-Ciliates", "Alveolata", "Rhizaria", "Stramenopiles", "Hacrobia", "Amoebozoa", "Excavata", "Archaeplastida", "Opisthokonta", "Unassigned-Eukaryote")
+broad_order <- c("Alveolata-Ciliates", "Alveolata", "Rhizaria-Cercozoa", "Rhizaria-Radiolaria", "Rhizaria-Other", "Stramenopiles-MAST", "Stramenopiles-Ochrophyta", "Stramenopiles-Other", "Hacrobia", "Amoebozoa", "Excavata", "Apusozoa", "Archaeplastida", "Opisthokonta", "Unassigned-Eukaryote")
 putative_prey_dist$BROAD_TAXA_ORDER <- factor(putative_prey_dist$Broad_Taxa.A, levels = broad_order)
-broad_color <- c("#ae017e","#bd0026","#ec7014","#238b45","#016c59","#08519c","#54278f","#810f7c", "black", "grey")
-names(broad_color) <- broad_order
+
+broad_color <- c("#ae017e","#bd0026",
+                 "#ec7014","#ec7014",
+                 "#238b45","#238b45",
+                 "#016c59","#4d004b","#08519c","#54278f","#810f7c", 
+                 "black", "black", "black", "black")
+
+names(broad_order) <- broad_color
+
 ```
 
 
@@ -2392,8 +2447,11 @@ p_p_wloc <- tax_sum_interact %>%
 # head(p_p_wloc)
 dim(putative_prey); dim(p_p_wloc)
 
-p_p_wloc$BROAD_TAXA_ORDER <- factor(p_p_wloc$Broad_Taxa.A, levels = c("Alveolata-Ciliates", "Alveolata", "Rhizaria", "Stramenopiles", "Hacrobia", "Amoebozoa", "Excavata", "Archaeplastida", "Opisthokonta", "Unassigned-Eukaryote"))
-broad_color <- c("#ae017e","#bd0026","#ec7014","#238b45","#016c59","#08519c","#54278f","#810f7c")
+p_p_wloc$BROAD_TAXA_ORDER <- factor(p_p_wloc$Broad_Taxa.A, levels = c("Alveolata-Ciliates", "Alveolata", "Rhizaria-Cercozoa", "Rhizaria-Radiolaria", "Rhizaria-Other", "Stramenopiles-MAST", "Stramenopiles-Ochrophyta", "Stramenopiles-Other", "Hacrobia", "Amoebozoa", "Excavata", "Apusozoa", "Archaeplastida", "Opisthokonta", "Unassigned-Eukaryote"))
+broad_color <- c("#ae017e","#bd0026",
+                 "#ec7014","#ec7014",
+                 "#238b45","#238b45",
+                 "#016c59","#4d004b","#08519c","#54278f","#810f7c")
 ```
 
 ```{r Plot with ASV interaction and location, fig.height=10, fig.width=10}
