@@ -17,10 +17,10 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, cache=FALSE)
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, tidy = TRUE)
 ```
 # Overview
-Hu et al. _in prep_. **Protistan grazing and biogeography at Gorda Ridge hydrothermal vent field**
+Hu et al. _in prep_. **Protistan grazing impacts microbial communities and carbon cycling at deep-sea hydrothermal vents**
 
 Code for all data analysis and figure generation, including grazing experiment analysis and sequence data processing. 
 * Import raw counts from FLP disappearance experiments
@@ -34,9 +34,9 @@ Code for all data analysis and figure generation, including grazing experiment a
 # Set up working R environment
 The following analysis was performed in **R version 3.6.1**. All input files are available on the [Gorda Ridge GitHub ](https://github.com/shu251/protist-gordaridge-2019-analysis). 
 
-```{r Load libraries}
+```{r Load libraries, message=FALSE}
 library(tidyverse);library(reshape2);library(cowplot)
-library(patchwork);library(phyloseq);library(decontam)
+library(phyloseq);library(decontam)
 ```
 
 # Import grazing experiment results & quality control
@@ -62,7 +62,7 @@ prok<-read.table("data-input/prok_counts.txt",header=T, fill=T, sep="\t"); head(
 
 
 Sample Plume003, is more appropriately considered near vent bottom water. Modify sample name and entry below.
-```{r Update sample name schematic - grazing}
+```{r Update sample name schematic - grazing, echo=FALSE, message=FALSE}
 # head(exp_IDs)
 exp_IDs_mod <- exp_list %>% 
   type.convert(as.is = TRUE) %>% 
@@ -180,7 +180,7 @@ prok_avg <- prok_mod %>%
 colnames(t0)
 ```
 
-```{r Percent difference from T0 and timepoints}
+```{r Percent difference from T0 and timepoints, echo=FALSE, message=FALSE}
 # Calculate percent difference between T0 and T1, and T1 and T2
 flp_exp_summary <- t0 %>%
     left_join(t_ex) %>%
@@ -259,7 +259,7 @@ ggplot(flp_long_toplot, aes(x = Hrs, y = cellmL, fill = SAMPLE_ORDER)) +
     geom_point(stat = "identity", size = 3, color = "black", aes(fill = SAMPLE_ORDER, shape = SAMPLE_ORDER)) +
     scale_y_log10() +
     scale_fill_manual(values = sample_color) +
-    scale_shape_manual(values = c(24,21,21,21,21)) +
+    scale_shape_manual(values = c(23,21,21,21,21)) +
     labs(y = bquote("FLP cells "~mL^-1), x = "Incubation hours") +
     facet_grid(SAMPLE_ORDER~BOTTLE, scales = "free") +
     theme_bw() + 
@@ -313,7 +313,7 @@ keep_status <- rbind(T1_tmp, T2_tmp); #keep_status
 # # Mt Edwards time point T1, Sirventsalot T1, & venti latte T1
 ```
 
-```{r Join significant experiments}
+```{r Join significant experiments, echo=FALSE, message=FALSE}
 # Join experiments that are significant and filter data to keep.
 t <- c("T1", "T2")
 flp_trend_sig <- flp_long_toplot %>%
@@ -356,7 +356,7 @@ plot_graze_trends <- ggplot(flp_trend_sig,
 
 > Consistent loss in FLP over time
 
-```{r Change time point label structure, as each experiments lists T0 or TF}
+```{r Change time point label structure, as each experiments lists T0 or TF, echo=FALSE, message=FALSE}
 processed_data <- flp_trend_sig %>%
     type.convert(as.is = TRUE) %>%
     mutate(TimePoint = case_when(Tx == "T0" ~ "T0",
@@ -413,6 +413,7 @@ graze_rate <- processed_data %>%
            GrazingRate_hr_II = (G_II_a/Hrs_Tf)
            ) %>%
         data.frame
+# graze_rate
 ```
 
 ```{r Plot grazing rate, fig.width=4, fig.height=3}
@@ -421,19 +422,21 @@ sample_order <- c("Near vent BW","Mt Edwards","Venti latte","Candelabra","SirVen
 sample_label <- c("Near vent BW","Mt. Edwards","Venti latte","Candelabra","Sir Ventsalot")
 sample_color <-c("#6f88af","#61ac86","#711518","#dfa837","#ce536b")
 
-graze_rate$SAMPLE_ORDER <- factor(graze_rate$Vent.name, levels = rev(sample_order), labels = rev(sample_label))
+graze_rate$SAMPLE_ORDER <- factor(graze_rate$Vent.name, levels = (sample_order), labels = (sample_label))
 
-mortality <- ggplot(graze_rate, aes(x = SAMPLE_ORDER, y = GrazingRate_hr, fill = SAMPLE_ORDER, shape = SampleOrigin)) +
-geom_errorbar(aes(ymin = GrazingRate_hr_min, ymax = GrazingRate_hr_max), size = 0.5, width = 0.1) +
+mortality <- ggplot(graze_rate, aes(y = SAMPLE_ORDER, x = GrazingRate_hr, fill = SAMPLE_ORDER, shape = SampleOrigin)) +
+geom_errorbar(aes(xmin = GrazingRate_hr_min, xmax = GrazingRate_hr_max), size = 0.5, width = 0.1) +
     geom_point(stat = "identity", size = 3, color = "black", aes(shape = SampleOrigin)) +
-    scale_fill_manual(values = rev(sample_color)) +
+    scale_fill_manual(values = (sample_color)) +
     scale_shape_manual(values = c(23,21)) +
     coord_flip() +
-    labs(x = "", y = bquote("Cells "~mL^-1 ~consumed ~hr^-1)) +
+    labs(y = "", x = bquote("Cells "~mL^-1 ~hr^-1)) +
     theme_minimal() +
     theme(panel.grid.major = element_line(), panel.grid.minor = element_blank(),
            panel.background = element_blank(), axis.line = element_line(colour = "black"), 
-           axis.text=element_text(color="black"), axis.ticks = element_line(),
+           axis.text.x = element_text(color="black", angle = 45, hjust = 1, vjust = 1), 
+          axis.ticks = element_line(),
+          axis.text.y = element_text(color="black"),
            legend.position = "none", strip.text =element_blank())
 
 # mortality
@@ -443,28 +446,29 @@ geom_errorbar(aes(ymin = GrazingRate_hr_min, ymax = GrazingRate_hr_max), size = 
 bar_plot <- ggplot(graze_rate, aes(x = SAMPLE_ORDER, y = Prok_turnover)) +
     geom_bar(stat = "identity", position = "stack", width = 0.6, aes(fill = SAMPLE_ORDER)) +
     geom_errorbar(aes(ymin = Prok_turnover_min, ymax = Prok_turnover_max), size = 0.5, width = 0.1) +
-   scale_fill_manual(values = rev(sample_color)) +
+   scale_fill_manual(values = (sample_color)) +
     scale_y_continuous(expand = c(0,0), limits = c(0,100)) +
     labs(x = "", y = bquote("Prokaryote turnover %"~d^-1)) +
-    coord_flip() +
+    # coord_flip() +
     theme_minimal() +
     theme(panel.grid.major = element_line(), panel.grid.minor = element_blank(),
            panel.background = element_blank(), axis.line = element_line(colour = "black"), 
-           axis.text=element_text(color="black"), axis.ticks = element_line(),
+           axis.text.y=element_text(color="black"), axis.ticks = element_line(),
+          axis.text.x = element_text(color="black", angle = 45, hjust = 1, vjust = 1),
            legend.position = "none", strip.text =element_blank())
-# bar_plot
+bar_plot
 ```
 
 ### Final figure generation
 
-```{r Generate panel plot, fig.width=12, fig.height=3}
-leg <- get_legend(plot_graze_trends)
-
-# svg("figs/Grazing-results-panel-03-11-2020.svg", h = 3, w = 12)
+```{r Generate panel plot, fig.width=3, fig.height=7}
+# svg("figs/Grazing-results-panel-VERT-15-01-2021.svg", h = 7, w = 3)
 plot_grid(plot_graze_trends + theme(legend.position = "none"),
-          mortality + theme(axis.text.y = element_blank()) + labs(x = "Grazing experiment"),
-          bar_plot + theme(axis.text.y = element_blank()), leg,
-          axis = c("tblr"), labels = c("a", "b", "c", ""), nrow = 1)
+          # mortality,
+          # bar_plot,
+          mortality + theme(axis.text.x = element_blank()),
+          bar_plot + theme(axis.text.x = element_blank()),
+          axis = c("lrtb"), align = c("hv"), labels = c("a", "b", "c"), nrow = 3, ncol = 1)
 # dev.off()
 ```
 
@@ -492,97 +496,6 @@ graze_rate_wCarbon <- graze_rate %>%
 # write_delim(graze_rate_wCarbon, path = "Grazing-calc-wCarbon-results.txt", delim = "\t")
 ```
 
-```{r Generate raster plot data}
-# carbon_density <- crossing(fgC_cell = seq(86, 300, by = 1), 
-#                              GrazingRate_hr = seq(min(graze_rate$GrazingRate_hr), max(graze_rate$GrazingRate_hr), length.out = 215))  %>% 
-#   mutate(fgC_ml_perday = ((GrazingRate_hr*24) * fgC_cell),
-#     ugC_L_perday = (fgC_ml_perday * (1e-09) * 1000)
-#     ) %>%
-#   data.frame
-# head(carbon_density)
-# dim(carbon_density)
-# min(graze_rate$G)
-# max(graze_rate$G)
-```
-
-```{r Plot carbon relationship raster, fig.height=3.5, fig.width=5}
-
-# ten <- carbon_density %>% filter(ugC_L_perday > 10 & ugC_L_perday < 10.01)
-# five <- carbon_density %>% filter(ugC_L_perday > 5 & ugC_L_perday < 5.01)
-# two <- carbon_density %>% filter(ugC_L_perday > 2 & ugC_L_perday < 2.01)
-# # range(carbon_density$ugC_L_perday)
-# # str(carbon_density)
-# # pdf("figs/Raster-carbon.pdf", w = 5, h = 3.5)
-# ggplot(carbon_density, aes(x = fgC_cell, y = GrazingRate_hr)) +
-#   geom_raster(aes(fill = ugC_L_perday)) +
-#   scale_fill_gradientn(colors = c("#fef0d9", "#b30000"), name = bquote("ug C"~L^-1 ~day^-1)) +
-#   # scale_fill_discrete(name = "New Legend Title")
-#   scale_y_continuous(expand = c(0,0)) +
-#   scale_x_continuous(expand = c(0,0)) +
-#   theme_bw() +
-#   theme(axis.text = element_text(color = "black"),
-#         rect = element_rect(fill = "transparent"),
-#         panel.background = element_rect(fill = "transparent"),
-#         plot.background = element_rect(fill = "transparent", color = NA)) +
-#   labs(y = bquote("Cells "~mL^-1 ~consumed ~hr^-1), x = bquote("fg C"~cell^-1)) +
-#   geom_line(data = ten, 
-#             aes(x = fgC_cell, 
-#             y = GrazingRate_hr), color = "white", size = 0.2) +
-#   geom_line(data = five, 
-#             aes(x = fgC_cell, 
-#             y = GrazingRate_hr), color = "white", size = 0.2) +
-#   geom_line(data = two, 
-#             aes(x = fgC_cell, 
-#             y = GrazingRate_hr), color = "white", size = 0.2) +
-#   geom_point(x = 87, y = (255.3789), shape = 23, color = "#6f88af", fill = "#6f88af") +
-#   geom_point(x = 87, y = (700.7713), shape = 21, color = "#61ac86", fill = "#61ac86") +
-#   geom_point(x = 87, y = (1646.7899), shape = 21, color = "#711518", fill = "#711518") +
-#   geom_point(x = 87, y = (902.8954), shape = 21, color = "#dfa837", fill = "#dfa837") +
-#   geom_point(x = 87, y = (1828), shape = 21, color = "#ce536b", fill = "#ce536b")
-# dev.off()
-```
-
-
-## Plot in situ microbial concentration
-```{r Modify data table}
-x <- as.character(unique(flp_long_toplot$Vent.name))
-# x
-
-prok_avg_mod <- prok_avg %>% 
-  add_column(BOTTLE = "in situ") %>% 
-  select(SAMPLE, Vent.name, BOTTLE, cellmL = prok_avg) %>% 
-  filter(Vent.name %in% x) %>% 
-  data.frame
-# head(prok_avg_mod)
-```
-
-```{r Extract T0}
-t0_flp <- flp_long_toplot %>%
-    filter(Tx == "T0") %>%
-    select(SAMPLE, Vent.name, BOTTLE, cellmL) %>%
-    data.frame
-# t0_flp
-# head(t0_flp)
-
-# Combine
-t0_insitu_counts <- rbind(t0_flp, prok_avg_mod) #; t0_insitu_counts
-```
-
-```{r Plot in situ prok and est FLP}
-# svg("flp-insitu-prok-counts.svg", w = 6, h = 5)
-# ggplot(t0_insitu_counts, aes(x = Vent.name, y = cellmL, fill = BOTTLE, shape = BOTTLE)) +
-#     geom_point(stat = "identity", size = 4) +
-#     scale_y_log10(limits = c(1e3,1e6)) +
-#     scale_fill_manual(values = c("#d73027", "#fee090", "#4575b4")) +
-#     scale_shape_manual(values = c(22, 22, 23)) +
-#     labs(x = "", y = "cells/mL") +
-#     theme_bw() +
-#     theme(legend.title = element_blank(),
-#          axis.text.x = element_text(angle = 90, color = "black", size = 12, hjust = 1, vjust = 0.5),
-#          axis.text.y = element_text(color = "black", size = 12))
-# dev.off()
-```
-
 
 # Import 18S ASV table & quality control
 
@@ -598,7 +511,7 @@ load("data-input/GR-ASVtables-updatedTax.RData", verbose = TRUE)
 Import ASV table as phyloseq object, note control samples.
 
 
-```{r extract taxonomic info}
+```{r extract taxonomic info, warning=FALSE}
 taxmat <- GR_tagseq_wideformat %>% 
   select(Feature.ID, Taxon_updated) %>% 
   separate(Taxon_updated, c("Kingdom","Supergroup","Division","Class","Order","Family","Genus","Species"), sep = ";", remove = FALSE) %>% 
@@ -616,14 +529,14 @@ asvmat <- GR_tagseq_wideformat %>%
 ```
 
 Import metadata below and combine with phyloseq object.
-```{r Import as phyloseq object}
+```{r Import as phyloseq object, message=FALSE, echo=FALSE, warning=FALSE}
 row.names(taxmat)<-row.names(asvmat)
 # class(asvmat);class(taxmat)
 
 ASV = otu_table(asvmat, taxa_are_rows = TRUE) #phyloseq command
 TAX = tax_table(taxmat)
 physeq <- phyloseq(ASV, TAX)
-physeq #Phyloseq object
+# physeq #Phyloseq object
 
 # Include additional sample names
 samplenames <- as.data.frame(colnames(asvmat))
@@ -635,7 +548,7 @@ ventnames <- read.delim("data-input/ventnames-gordaridge.txt")
 # names(ventnames);head(ventnames)
 # View(ventnames)
 colnames(ventnames)[1]<-"SAMPLE"
-ventnames
+head(ventnames)
 #
 samplenames_1 <- left_join(samplenames, ventnames)
 row.names(samplenames_1)<-sample_names(physeq) 
@@ -650,7 +563,7 @@ physeq_names = merge_phyloseq(physeq, sampledata)
 
 ## Identify contaminant ASVs
 _Decontam_ will identify putative contaminate ASVs based on the difference in prevalence between control blank and environmental samples. First review the library size or number of sequences within each sample to see how varied the control samples are to the experimental samples.
-```{r check library size, fig.height=4, fig.width=6}
+```{r check library size, fig.height=3, fig.width=5}
 # Decontam:
 physeq_names
 # Check out library size of my data
@@ -754,7 +667,7 @@ length(unique(counts_decont$Feature.ID)) - length(unique(GR_tagseq_longformat$Fe
 # head(counts_decont)
 ```
 
-```{r Report removal of sequences by sample}
+```{r Report removal of sequences by sample, warning=FALSE, message=FALSE}
 # Breakdown by samples:
 passfail_wide <- dcast(passfail, SAMPLE ~ CONTAM)
 passfail_wide$PercLossSeq <- paste(100*(passfail_wide$Fail/(passfail_wide$Fail+passfail_wide$Pass)))
@@ -802,7 +715,7 @@ tax_only_tmp <- gr_counts %>%
   data.frame
 ```
 
-```{r Import metadata for sample names & Join}
+```{r Import metadata for sample names & Join, message=FALSE, warning=FALSE}
 ventnames <- read.delim("data-input/ventnames-gordaridge.txt")
 colnames(ventnames)[1]<-"SAMPLE"
 
@@ -854,7 +767,7 @@ Apply PR2 curation to 18S data.
 ```{r Run taxonomy curation fxn}
 gr_counts_wtax <- pr2_curate(gr_counts_name)
 # head(gr_counts_wtax[1:3,])
-unique(gr_counts_wtax$Taxa)
+# unique(gr_counts_wtax$Taxa)
 ```
 > Output is the full ASV table with added columns for curated taxonomy. Above also provides a list of the unique taxonomic names assigned.
 
@@ -918,14 +831,14 @@ gr_counts_avg_wtax <- gr_counts_filter %>%
 # dim(gr_counts_filter);dim(gr_counts_avg_wtax)
 # tmp <- gr_counts_avg_wtax %>% select(Taxa, Taxon_updated, Kingdom, Supergroup, Division, Class, Order, Family, Genus, Species) %>% distinct() %>% data.frame
 # write_delim(tmp, path = "tax-tmp-2.txt", delim = "\t")
-unique(gr_counts_avg_wtax$Taxa)
-unique(gr_counts_avg_wtax$LocationName)
+# unique(gr_counts_avg_wtax$Taxa)
+# unique(gr_counts_avg_wtax$LocationName)
 ```
 
 
 ```{r Save 18S table with taxonomic curation and averages}
 # Save output and view
-save(gr_counts_filter,gr_counts_wtax, gr_counts_avg_wtax, file="data-input/GordaRidge-ASVtable-avg-19-08-2020.RData")
+# save(gr_counts_filter,gr_counts_wtax, gr_counts_avg_wtax, file="data-input/GordaRidge-ASVtable-avg-19-08-2020.RData")
 ```
 
 ### Sum ASV sequence counts to taxonomic level
@@ -947,13 +860,6 @@ gr_counts_avg_TAXA <- gr_counts_avg_wtax %>%
     summarise(SUM = sum(COUNT_AVG)) %>% 
     unite(SAMPLE, LocationName, Sampletype, SAMPLEID, sep = " ", remove = FALSE) %>% 
     data.frame
-# View(gr_counts_avg_TAXA)
-# head(gr_counts_avg_TAXA)
-
-# head(gr_counts_filter)
-# unique(gr_counts_filter$SAMPLEID)
-# unique(gr_counts_filter$LOCATION_SPECIFIC)
-# unique(gr_counts_filter$LocationName)
 
 # Sum each replicate separately to curated taxa level
 gr_counts_wreps_TAXA <- gr_counts_filter %>%
@@ -979,7 +885,7 @@ gr_counts_wreps_TAXA <- gr_counts_filter %>%
 ```
 
 
-```{r Make supplementary tables}
+```{r Make supplementary tables, message=FALSE, warning=FALSE}
 sample_order_all<-c("Shallow seawater in situ sterivex","Deep seawater in situ sterivex", "Near vent BW in situ sterivex","Near vent BW Grazing T0","Near vent BW Grazing T24","Near vent BW Grazing T36","Mt Edwards Plume in situ sterivex","Mt Edwards Vent in situ SUPR","Mt Edwards Vent Grazing T0","Mt Edwards Vent Grazing T36","Venti Latte Vent in situ SUPR","Venti Latte Vent Grazing T0","Venti Latte Vent Grazing T36","Candelabra Plume in situ sterivex","Candelabra Vent in situ SUPR","Candelabra Vent Grazing T24","SirVentsAlot Vent in situ SUPR","SirVentsAlot Vent Grazing T24")
 
 supp_table_seq <- gr_counts_avg_TAXA %>%
@@ -987,7 +893,6 @@ supp_table_seq <- gr_counts_avg_TAXA %>%
   pivot_wider(names_from = SAMPLE, values_from = SUM, values_fill = 0) %>% 
   arrange(Taxa) %>% 
   select(Taxa, sample_order_all)
-# View(supp_table_seq)
 # write_delim(supp_table_seq, path = "Suppl-18s-seq-total.txt", delim = "\t")
 #
 # head(gr_counts_avg_wtax)
@@ -1001,7 +906,6 @@ supp_table_ASV <- gr_counts_avg_wtax %>%
     pivot_wider(names_from = SAMPLE, values_from = ASV_total, values_fill = 0) %>% 
     arrange(Taxa) %>% 
     select(Taxa, sample_order_all)
-# View(supp_table_ASV)
 # write_delim(supp_table_ASV, path = "Suppl-18s-asv-total.txt", delim = "\t")
 ```
 
@@ -1017,7 +921,10 @@ names(level2color)<-level2ORDER
 
 sample_order_all<-c("Shallow seawater in situ sterivex","Deep seawater in situ sterivex", "Near vent BW in situ sterivex","Near vent BW Grazing T0","Near vent BW Grazing T24","Near vent BW Grazing T36","Mt Edwards Plume in situ sterivex","Mt Edwards Vent in situ SUPR","Mt Edwards Vent Grazing T0","Mt Edwards Vent Grazing T36","Venti Latte Vent in situ SUPR","Venti Latte Vent Grazing T0","Venti Latte Vent Grazing T36","Candelabra Plume in situ sterivex","Candelabra Vent in situ SUPR","Candelabra Vent Grazing T24","SirVentsAlot Vent in situ SUPR","SirVentsAlot Vent Grazing T24")
 
-sample_name_all<-c("Shallow BSW","Deep BSW","Near vent BW","Near vent BW T0","Near vent BW T23","Near vent BW T35","Mt Edwards Plume","Mt Edwards Vent","Mt Edwards Vent T0","Mt Edwards Vent  T36","Venti Latte Vent","Venti Latte Vent T0","Venti Latte Vent T29","Candelabra Plume","Candelabra Vent","Candelabra Vent T26","Sir Ventsalot Vent","Sir Ventsalot Vent T24")
+
+sample_name_all<-c("Shallow seawater in situ","Deep seawater in situ","Near vent BW in situ","Near vent BW Grazing T0","Near vent BW Grazing T24","Near vent BW Grazing T36","Mt Edwards Plume in situ","Mt Edwards Vent in situ","Mt Edwards Vent Grazing T0","Mt Edwards Vent Grazing T36","Venti Latte Vent in situ","Venti Latte Vent Grazing T0","Venti Latte Vent Grazing T36","Candelabra Plume in situ","Candelabra Vent in situ","Candelabra Vent Grazing T24","SirVentsAlot Vent in situ","SirVentsAlot Vent Grazing T24")
+
+
 gr_counts_avg_TAXA$SAMPLE_ORDER <- factor(gr_counts_avg_TAXA$SAMPLE, levels = sample_order_all, labels = sample_name_all)
 
 
@@ -1031,7 +938,6 @@ gr_counts_wreps_TAXA$LEVEL2ORDER <- factor(gr_counts_wreps_TAXA$Taxa, levels=lev
 gr_counts_wreps_TAXA$SAMPLE_ORDER <- factor(gr_counts_wreps_TAXA$SAMPLE, levels = sample_order_all, labels = sample_name_all) # Factor by sample, but will plot x as sample with reps
 gr_counts_wreps_TAXA$SAMPLEID_ORDER <- factor(gr_counts_wreps_TAXA$SAMPLEID, levels = exporder)
 gr_counts_wreps_TAXA$LOCATION_ORDER <- factor(gr_counts_wreps_TAXA$LocationName, levels=c("Shallow seawater", "Deep seawater", "Near vent BW", "Mt Edwards Plume","Mt Edwards Vent", "Venti Latte Vent", "Candelabra Plume","Candelabra Vent", "SirVentsAlot Vent"))
-head(gr_counts_wreps_TAXA %>% select(LocationName, Taxa, SUM))
 ```
 
 ## Protistan community barplots
@@ -1079,13 +985,13 @@ insitu <- c("sterivex", "SUPR")
 rm <- c("Unassigned", "Opisthokonta-Other", "Opisthokonta-Fungi", "Opisthokonta-Metazoa")
 ```
 
-```{r Figure taxa with all replicates, fig.height = 9, fig.width = 13}
+```{r Figure taxa with all replicates, fig.height = 10, fig.width = 16}
 # svg("figs/barplot-taxalevel-wReps.svg", h = 9, w = 13)
 barplot_lev2_wreps(gr_counts_wreps_TAXA)
 # dev.off()
 ```
 
-```{r Figure generation-all, fig.height = 7, fig.width = 9}
+```{r Figure generation-all, fig.height = 8, fig.width = 10}
 insitu <- c("sterivex", "SUPR")
 rm <- c("Unassigned", "Opisthokonta-Other", "Opisthokonta-Fungi", "Opisthokonta-Metazoa")
 
@@ -1095,10 +1001,10 @@ nometaz_all
 
 ```{r Supplemental plot with metazoa, fig.height = 8, fig.width = 10}
 
-withmetaz_all <- barplot_lev2(filter(gr_counts_avg_TAXA))
-
-# svg("figs/SUPPLEMENTARY-GR-tax-barplot-wmetaz.svg", w = 10, h = 8)
-withmetaz_all
+# withmetaz_all <- barplot_lev2(filter(gr_counts_avg_TAXA))
+# 
+# # svg("figs/SUPPLEMENTARY-GR-tax-barplot-wmetaz.svg", w = 10, h = 8)
+# withmetaz_all
 # dev.off()
 ```
 
@@ -1286,7 +1192,7 @@ gr_wide <- gr_counts_avg_wtax %>%
 # names(gr_wide)
 ```
 
-```{r Add categorized columns}
+```{r Add categorized columns, message=FALSE, warning=FALSE}
 # Import classifications
 classifcation_schema <- read.delim("data-input/vent-asv-classification.txt")
 
@@ -1438,12 +1344,11 @@ gr_stats_wtax_toplot <- gr_stats_wtax %>%
 
 sample_order_all<-c("Shallow seawater in situ sterivex","Deep seawater in situ sterivex", "Near vent BW in situ sterivex","Near vent BW Grazing T0","Near vent BW Grazing T24","Near vent BW Grazing T36","Mt Edwards Plume in situ sterivex","Mt Edwards Vent in situ SUPR","Mt Edwards Vent Grazing T0","Mt Edwards Vent Grazing T36","Venti Latte Vent in situ SUPR","Venti Latte Vent Grazing T0","Venti Latte Vent Grazing T36","Candelabra Plume in situ sterivex","Candelabra Vent in situ SUPR","Candelabra Vent Grazing T24","SirVentsAlot Vent in situ SUPR","SirVentsAlot Vent Grazing T24")
 
-sample_name_all<-c("Shallow BSW","Deep BSW","Near vent BW","Near vent BW T0","Near vent BW T23","Near vent BW T35","Mt Edwards Plume","Mt Edwards Vent","Mt Edwards Vent T0","Mt Edwards Vent  T36","Venti Latte Vent","Venti Latte Vent T0","Venti Latte Vent T29","Candelabra Plume","Candelabra Vent","Candelabra Vent T26","Sir Ventsalot Vent","Sir Ventsalot Vent T24")
+sample_name_all<-c("Shallow seawater in situ","Deep seawater in situ","Near vent BW in situ","Near vent BW Grazing T0","Near vent BW Grazing T24","Near vent BW Grazing T36","Mt Edwards Plume in situ","Mt Edwards Vent in situ","Mt Edwards Vent Grazing T0","Mt Edwards Vent Grazing T36","Venti Latte Vent in situ","Venti Latte Vent Grazing T0","Venti Latte Vent Grazing T36","Candelabra Plume in situ","Candelabra Vent in situ","Candelabra Vent Grazing T24","SirVentsAlot Vent in situ","SirVentsAlot Vent Grazing T24")
 
 location_order <- c("Shallow seawater","Deep seawater","Near vent BW","Mt Edwards Plume","Mt Edwards Vent","Venti Latte Vent","Candelabra Plume","Candelabra Vent","SirVentsAlot Vent")
 
 location_order_name <- c("Shallow BSW","Deep BSW","Near vent BW","Mt. Edwards Plume","Mt. Edwards","Venti latte","Candelabra Plume","Candelabra","Sir Ventsalot")
-
 
 gr_stats_wtax_toplot$SAMPLE_ORDER <- factor(gr_stats_wtax_toplot$sample, levels = sample_order_all, labels = sample_name_all)
 exporder <- c("sterivex", "SUPR", "T0", "T24", "T36")
@@ -1465,7 +1370,6 @@ names(category_color) <- category_order
 
 
 ```{r Plot total sequences by distribution}
-
 totalseq <- ggplot(gr_stats_wtax_toplot, aes(x=SAMPLE_ORDER, y=sumseqs, fill=CATEGORY_ORDER)) +
   geom_bar(stat = "identity", color = "black", position = "fill") + 
 #   scale_fill_brewer(palette = "Accent") +
@@ -1623,14 +1527,14 @@ expand_taxa2 <- function(df){
  
 ```
 
-```{r Apply taxonomic curation to table}
+```{r Apply taxonomic curation to table, message=FALSE, warning=FALSE}
 # Apply to ASV table
 gr_counts_avg_wtax2 <- expand_taxa2(gr_stats_wtax)
 # View(gr_counts_avg_wtax2)
 ```
 
 ## Include ASV distribution
-```{r Add ASV distribution information}
+```{r Add ASV distribution information, message=FALSE, warning=FALSE}
 # Add categories & set up for plotting function
 gr_tax_res <- gr_counts_avg_wtax2 %>% 
     left_join(gr_dist) %>% 
@@ -1639,7 +1543,7 @@ gr_tax_res <- gr_counts_avg_wtax2 %>%
 # save(gr_tax_res, file = "GR-alltax-dist-tax2.RData")
 ```
 
-```{r Export table for supplementary}
+```{r Export table for supplementary, message=FALSE, warning=FALSE}
 # Make table summarizing taxa stats for each sample.
 # head(gr_tax_res)
 asv_seq_taxa <- gr_tax_res %>% 
@@ -1671,84 +1575,87 @@ asv_seq_taxa2 <- gr_tax_res %>%
 ```{r factor and plot function}
 sample_order_all<-c("Shallow seawater in situ sterivex","Deep seawater in situ sterivex", "Near vent BW in situ sterivex","Near vent BW Grazing T0","Near vent BW Grazing T24","Near vent BW Grazing T36","Mt Edwards Plume in situ sterivex","Mt Edwards Vent in situ SUPR","Mt Edwards Vent Grazing T0","Mt Edwards Vent Grazing T36","Venti Latte Vent in situ SUPR","Venti Latte Vent Grazing T0","Venti Latte Vent Grazing T36","Candelabra Plume in situ sterivex","Candelabra Vent in situ SUPR","Candelabra Vent Grazing T24","SirVentsAlot Vent in situ SUPR","SirVentsAlot Vent Grazing T24")
 
-sample_name_all<-c("Shallow BSW","Deep BSW","Near vent BW","Near vent BW T0","Near vent BW T23","Near vent BW T35","Mt Edwards Plume","Mt Edwards Vent","Mt Edwards Vent T0","Mt Edwards Vent  T36","Venti Latte Vent","Venti Latte Vent T0","Venti Latte Vent T29","Candelabra Plume","Candelabra Vent","Candelabra Vent T26","Sir Ventsalot Vent","Sir Ventsalot Vent T24")
-
-location_order <- c("Shallow seawater","Deep seawater","Near vent BW","Mt Edwards Plume","Mt Edwards Vent","Venti Latte Vent","Candelabra Plume","Candelabra Vent","SirVentsAlot Vent")
-
-location_order_name <- c("Shallow BSW","Deep BSW","Near vent BW","Mt. Edwards Plume","Mt. Edwards","Venti latte","Candelabra Plume","Candelabra","Sir Ventsalot")
+sample_name_all<-c("Shallow seawater in situ","Deep seawater in situ","Near vent BW in situ","Near vent BW Grazing T0","Near vent BW Grazing T24","Near vent BW Grazing T36","Mt Edwards Plume in situ","Mt Edwards Vent in situ","Mt Edwards Vent Grazing T0","Mt Edwards Vent Grazing T36","Venti Latte Vent in situ","Venti Latte Vent Grazing T0","Venti Latte Vent Grazing T36","Candelabra Plume in situ","Candelabra Vent in situ","Candelabra Vent Grazing T24","SirVentsAlot Vent in situ","SirVentsAlot Vent Grazing T24")
 
 gr_tax_res$SAMPLE_ORDER <- factor(gr_tax_res$sample, levels = sample_order_all, labels = sample_name_all)
-exporder <- c("sterivex", "SUPR", "T0", "T24", "T36")
-gr_tax_res$SAMPLEID_ORDER <- factor(gr_tax_res$SAMPLEID, levels = exporder)
-
-gr_tax_res$LOCATION_ORDER <- factor(gr_tax_res$LocationName, levels = location_order, labels = location_order_name)
-# head(gr_tax_res)
-prepdf_tax_dist <- function(df){ 
-    df2 <- df %>% 
-#     filter(category_final %in% category) %>% 
-    # average across replicates
-    group_by(Feature.ID, RES_COSMO = DIST_simple, SAMPLE = sample, SAMPLEID, Sampletype, LocationName, Broad_Taxa, Taxon_updated, Taxa, Taxa2) %>%
-    summarise(COUNT_AVG2 = mean(COUNT_AVG)) %>%
-    ungroup() %>% 
-    # sum by like taxa
-    group_by(RES_COSMO, SAMPLE, SAMPLEID, Sampletype, LocationName, Broad_Taxa, Taxa, Taxa2) %>% 
-    summarise(SUM = sum(COUNT_AVG2)) %>% 
-    data.frame
-    df2$SAMPLENAME<-factor(df2$SAMPLE, levels = sample_order_all, labels = sample_name_all)
-    df2$SAMPLEID_ORDER <- factor(df2$SAMPLEID, levels = c("sterivex", "SUPR", "T0", "T24", "T36"))
-    df2$LOCATION_ORDER <- factor(df2$LocationName, levels=location_order)
-    return(df2)
-}
-```
-
-```{r Reformat data frame to plot, warning=FALSE, message=FALSE}
-gr_tax_res_toplot <- prepdf_tax_dist(gr_tax_res)
-# tmp <- select(gr_tax_res_toplot, Taxa, Taxa2, Broad_Taxa) %>% distinct()
-# write_delim(tmp, path = "tmp-tax.txt", delim = "\t")
-# head(gr_tax_res_toplot[1:2,])
-# View(gr_tax_res_toplot %>% select(Taxa, Taxa2) %>% distinct())
-```
-
-## Extract ASV richness
-```{r Extract ASV richness data}
-gr_tax_res_richness <- gr_tax_res %>% 
-    # Average across replicates
-    group_by(Feature.ID, RES_COSMO = DIST_simple, SAMPLE = sample, SAMPLEID, Sampletype, LocationName, Broad_Taxa, Taxon_updated, Taxa2) %>%
-    summarise(COUNT_AVG2 = mean(COUNT_AVG)) %>%
-    ungroup() %>% 
-    # Get richness for each taxonomic group
-    group_by(RES_COSMO, Broad_Taxa, Taxa2) %>% 
-    summarise(RICHNESS = n_distinct(Feature.ID)) %>% 
-    data.frame
-```
-
-```{r Other taxonomic groups are not well resolved}
-# Explore "other categories" to ensure removal is OK!
-others <- c("Ciliates-Other", "Spirotrichea-Other", "Alveolata-Other", "Rhizaria-Other", "Stramenopiles-Other", "Amoebozoa", "Apusozoa", "Hacrobia-Other", "Archaeplastida-Other")
-# colnames(gr_tax_res)
-# tmp <- gr_tax_res %>% filter(Taxa2 %in% others) %>% select(Kingdom:Taxa, Taxa2) %>% distinct()
-# View(tmp)
-# hist(tmp$COUNT_AVG)
 ```
 
 
-## Tile plot with all taxonomic groups
+```{r Format dataframe include all samples}
+# Format input data frame to plot heatmap across resident and cosmopolitan populations.
+tax_key <- gr_tax_res %>% 
+  select(Broad_Taxa, Taxa2) %>% 
+  distinct() %>% 
+  data.frame
 
+expand_tmp <- gr_tax_res %>% 
+  expand(SAMPLE = sample, RES_COSMO = DIST_simple, Taxa2) %>% 
+  filter(!(RES_COSMO == "Other"))
 
-```{r Format for heatmap}
-gr_relAbun_toheat <- gr_tax_res_toplot %>% 
-    filter(!(Sampletype == "Control")) %>% 
-    # filter(Taxa %in% "Alveolata-Ciliates") %>% 
-    # filter(!(RES_COSMO == "Other")) %>% 
-    #Determine relative abundance within samples
-    group_by(Broad_Taxa, SAMPLENAME) %>% 
-    mutate(SUMTOTAL = sum(SUM),
-           RelAbun = 100*(SUM/SUMTOTAL)) %>% 
-    # ungroup() %>% 
-    # group_by(Taxa, SAMPLENAME) %>%
-    # mutate(SUMTOTAL_TAXA = sum(SUM),
-    #        RelAbun_Taxa = 100*(SUM/SUMTOTAL_TAXA)) %>%
-    data.frame
+# Subsetting to taxa of interest for the geom_tile:
+# RM
+others <- c("Unassigned-Eukaryote","Ciliates-Other", "Spirotrichea-Other", "Alveolata-Other", "Rhizaria-Other", "Stramenopiles-Other", "Stramenopiles-Bicoecea", "Amoebozoa", "Apusozoa", "Hacrobia-Other", "Archaeplastida-Other", "Archaeplastida-Streptophyta", "Archaeplastida-Chlorophyta")
+
+# Perform first formatting of data
+gr_relAbun_toheat_ONE <- gr_tax_res %>% 
+  # Remove unwanted samples - controls and ASVs that are not classified as cosmopolitan or resident
+  filter(!(Sampletype == "Control")) %>% 
+  filter(!(DIST_simple == "Other")) %>%
+  filter(Broad_Taxa != "Opisthokonta") %>% 
+  filter(!(Taxa2 %in% others)) %>% 
+  # Average across replicates - ASV sequence count averaged when ASV appears in replicate samples
+  group_by(Feature.ID, RES_COSMO = DIST_simple, SAMPLE = sample, Broad_Taxa, Taxa2) %>%
+  summarise(COUNT_AVG2 = mean(COUNT_AVG)) %>%
+  ungroup() %>% 
+  group_by(RES_COSMO, SAMPLE, Broad_Taxa, Taxa2) %>% 
+  summarise(SUM_TAXA2 = sum(COUNT_AVG2),
+            RICHNESS_TAXA2 = n_distinct(Feature.ID)) %>% 
+  data.frame
+
+# Get CLR transformed data
+# head(gr_relAbun_toheat_ONE)
+gr_taxa2_clr <- gr_relAbun_toheat_ONE %>% 
+  select(RES_COSMO, SAMPLE, Broad_Taxa, Taxa2, SUM_TAXA2) %>% 
+  pivot_wider(names_from = c("RES_COSMO", "SAMPLE"), values_from = SUM_TAXA2) %>% 
+  unite(tax, Broad_Taxa, Taxa2, sep = "_") %>% 
+  column_to_rownames(var = "tax") %>% 
+  data.frame
+# Perform CLR
+gr_taxa2_clr_df <- as.data.frame(clr(gr_taxa2_clr))
+# Reformat CLR data
+gr_taxa2_clr_df_mod <- gr_taxa2_clr_df %>% 
+  rownames_to_column(var = "tax") %>% 
+  separate(tax, c("Broad_Taxa", "Taxa2"), sep = "_") %>% 
+  pivot_longer(cols = starts_with(c("Cosmopolitan", "Resident")), values_to = "CLR") %>% 
+  separate(name, c("RES_COSMO", "SAMPLE_TMP"), sep = "_") %>% 
+  mutate(SAMPLE = gsub("\\.", " ", SAMPLE_TMP)) %>% 
+  select(-SAMPLE_TMP) %>% 
+  data.frame
+
+# Perform second series of data re-formatting
+gr_relAbun_toheat <- gr_relAbun_toheat_ONE %>% 
+  group_by(Broad_Taxa) %>%
+  mutate(SUM_BROAD_TAXA = sum(SUM_TAXA2),
+         RelAbun_Broad_Taxa = (100*(SUM_TAXA2/SUM_BROAD_TAXA))) %>%
+  ungroup() %>%
+  group_by(Taxa2) %>%
+  mutate(SUM_ALL_TAXA2 = sum(SUM_TAXA2),
+         RelAbun_Taxa2 = (100*(SUM_TAXA2/SUM_ALL_TAXA2))) %>%
+  select(-Broad_Taxa) %>%  #Temporarily remove
+  # Artifically match with expanded columns to include complete dataset
+  right_join(expand_tmp) %>%
+  # Re-join with taxonomic information and replace NAs with zeroes
+  left_join(tax_key) %>%
+  left_join(gr_taxa2_clr_df_mod) %>% 
+  replace(is.na(.), 0) %>%
+  # Need to replace TRUE zero with NA in CLR column
+  mutate(CLR = ifelse(
+    SUM_TAXA2 == 0, NA, CLR
+  )) %>% 
+  separate(SAMPLE, c("locale", "site", "type"), sep = " ", remove = FALSE) %>% 
+  select(-site, -type) %>% 
+  data.frame
+# View(gr_relAbun_toheat)
 ```
 
 ```{r Factor for tile plot}
@@ -1763,22 +1670,18 @@ broad_taxa_order <- c("Alveolata-Ciliates","Alveolata","Rhizaria",
 
 gr_relAbun_toheat$Broad_ORDER <- factor(gr_relAbun_toheat$Broad_Taxa, levels = broad_taxa_order)
 
-broad_color <- c("#ae017e","#cb181d","#d94801",
-                 "#fe9929","#005a32","#016450",
-                 "#084594", "#4a1486", "#238b45",
-                 "#252525", "#252525")
-# View(unique(gr_relAbun_toheat$Taxa))
-# unique(gr_relAbun_toheat$Taxa2)
-others <- c("Ciliates-Other", "Spirotrichea-Other", "Alveolata-Other", "Rhizaria-Other", "Stramenopiles-Other", "Stramenopiles-Bicoecea", "Amoebozoa", "Apusozoa", "Hacrobia-Other", "Archaeplastida-Other")
-
+# Factor sample order
+gr_relAbun_toheat$SAMPLENAME<-factor(gr_relAbun_toheat$SAMPLE, levels = sample_order_all, labels = sample_name_all)
+# head(gr_relAbun_toheat)
 ```
 
 ```{r tile plot code, fig.width=8, fig.height=10}
-    # Make geom tile plot
-tile_tax <- ggplot(gr_relAbun_toheat, aes(x = SAMPLENAME, alpha = RelAbun, 
-                                          fill = Broad_ORDER, y = TAXA2_ORDER)) +
+# Make geom tile plot relative abundance
+
+tile_tax <- ggplot(gr_relAbun_toheat, aes(x = SAMPLENAME, 
+                                          fill = RelAbun_Taxa2, 
+                                          y = TAXA2_ORDER)) +
     geom_tile(color = "white") +
-    scale_fill_manual(values = broad_color) +
     theme(legend.position = "right",
           panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
@@ -1787,43 +1690,20 @@ tile_tax <- ggplot(gr_relAbun_toheat, aes(x = SAMPLENAME, alpha = RelAbun,
           axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, color = "black", size = 8),
           axis.text.y = element_text(color="black", size = 8),
           strip.background = element_blank(),
-          strip.text.y = element_text(angle = 0, hjust = 0),
+          strip.text.y = element_text(hjust = 1, vjust = 0.5, angle = 0),
+          strip.text.x = element_blank(),
           legend.title = element_blank()) +
     labs(x="", y="")+
     facet_grid(Broad_ORDER ~ RES_COSMO, space = "free", scales = "free")
 # ?geom_tile
-```
 
-
-```{r plot tile, fig.width=8, fig.height=9}
-rm <- c("Opisthokonta-Fungi", "Opisthokonta-Other", "Opisthokonta-Metazoa")
-# tile_tax %+% subset(gr_relAbun_toheat, !(Taxa == "Unassigned-Eukaryote" |
-                                           # RES_COSMO == "Other" |
-                                           # Taxa %in% rm | Taxa2 %in% others))
-```
-
-
-```{r Plot bubbles as richness, fig.width=4, fig.height=10}
-broad_taxa_order <- c("Alveolata-Ciliates","Alveolata","Rhizaria",
-                      "Stramenopiles","Amoebozoa","Apusozoa",
-                      "Excavata","Hacrobia","Archaeplastida",
-                      "Opisthokonta","Unassigned-Eukaryote")
-
-gr_tax_res_richness$Broad_ORDER <- factor(gr_tax_res_richness$Broad_Taxa, levels = broad_taxa_order)
-gr_tax_res_richness$TAXA2_ORDER <- factor(gr_tax_res_richness$Taxa2, levels = rev(tax2_order_all))
-
-
-rm <- c("Opisthokonta-Fungi", "Opisthokonta-Other", "Opisthokonta-Metazoa")
-
+# Richness plot
 # bubble plot richness
-richness_df <- gr_tax_res_richness %>% 
-  filter(!(RES_COSMO == "Other")) %>% 
-  filter(!(Taxa2 %in% rm | Taxa2 == "Unassigned-Eukaryote")) %>% 
-  data.frame
-#
-richness_plot <- ggplot(richness_df, aes(x = RES_COSMO, y = TAXA2_ORDER)) +
-    geom_point(aes(size = RICHNESS)) +
-    scale_size_continuous(range = c(0.2, 4)) +
+richness_plot <- gr_relAbun_toheat %>% 
+  filter(RelAbun_Taxa2 > 0) %>% 
+  ggplot(aes(x = RES_COSMO, y = TAXA2_ORDER)) +
+    geom_point(aes(size = RICHNESS_TAXA2)) +
+    scale_size_continuous(range = c(0.1, 5)) +
     facet_grid(Broad_ORDER~RES_COSMO, space = "free", scales = "free") +
     theme(legend.position = "right",
           panel.grid.major = element_blank(),
@@ -1833,126 +1713,72 @@ richness_plot <- ggplot(richness_df, aes(x = RES_COSMO, y = TAXA2_ORDER)) +
           axis.text.x = element_text(angle = 90, size = 8),
           axis.text.y = element_text(size = 8),
           strip.text = element_blank(),
-          strip.background = element_blank(),
-          legend.title = element_blank()) +
-    labs(x="", y="")
-
+          strip.background = element_blank()) +
+    labs(x="", y="") +
+  guides(size = guide_legend(title = "Total ASVs")) +
+  coord_cartesian(clip = "off") 
 # richness_plot
 ```
 
-```{r, fig.width=18, fig.height=9}
-# tile <- get_legend(tile_tax %+% subset(gr_relAbun_toheat, !(Taxa == "Unassigned-Eukaryote" | 
-#                                            RES_COSMO == "Other" |
-#                                            Taxa %in% rm)))
-# rich <- get_legend(richness_plot)
+```{r Tile plot with relative abundance, fig.height=8, fig.width=16}
+# tmp0 <- filter(gr_relAbun_toheat, RelAbun_Taxa2 > 0)
+# MIN <- min(tmp0$RelAbun_Taxa2)
+# 
+# plot_grid(
+#   tile_tax %+% subset(gr_relAbun_toheat, RelAbun_Taxa2 > 0) +
+#   scale_fill_gradientn(limits = c(MIN,100),
+#     colors = c("#fef0d9","#fdd49e","#fdbb84","#fc8d59","#ef6548","#d7301f","#990000"), 
+#     values = c(0,0.1,0.2,0.3,0.4,0.5,0.7, 0.9, 1),
+#     na.value = NA),
+#   richness_plot, ncol = 2, axis = c("tb"), align = c("hv"))
+```
 
-# svg("figs/tile_bubble_plot.svg", w = 18, h = 9)
-plot_grid(tile_tax %+% subset(gr_relAbun_toheat, !(Taxa == "Unassigned-Eukaryote" |
-                                           RES_COSMO == "Other" |
-                                           Taxa %in% rm | Taxa2 %in% others)),
-          richness_plot %+% subset(richness_df, !(Broad_Taxa == "Opisthokonta" | 
-                                                    Broad_Taxa == "Unassigned-Eukaryote" |
-                                                    Taxa2 %in% others)), 
-          ncol = 2, axis = c("tb"), align = c("hv"))
+```{r Tile plot code for CLR}
+tile_tax_CLR <- ggplot(gr_relAbun_toheat, aes(x = SAMPLENAME, 
+                                          fill = CLR, 
+                                          y = TAXA2_ORDER)) +
+    geom_tile(color = "#bdbdbd") +
+    theme(legend.position = "right",
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank(),
+          axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, color = "black", size = 8),
+          axis.text.y = element_text(color="black", size = 8),
+          strip.background = element_blank(),
+          strip.text.y = element_text(hjust = 0, vjust = 0.5, angle = 0),
+          strip.text.x = element_text(hjust = 0, vjust = 0.5, angle = 0)) +
+    labs(x="", y="")+
+    facet_grid(Broad_ORDER ~ RES_COSMO, 
+               space = "free", scales = "free")
+```
+
+```{r Tile plot with CLR, fig.height=8, fig.width=16}
+
+one <- c("#a50026","#d73027","#f46d43","#fdae61","#fee090","#e0f3f8","#abd9e9","#74add1","#4575b4","#313695")
+two <- c("#8e0152","#c51b7d","#de77ae","#f1b6da","#f7f7f7","#b8e186","#7fbc41","#4d9221","#276419")
+# svg("figs/Tileplot-CLR-15-01-2021.svg", h = 8, w = 16)
+plot_grid(
+  tile_tax_CLR %+% subset(gr_relAbun_toheat, RelAbun_Taxa2 > 0) +
+  scale_fill_gradientn(colors = rev(two), na.value = NA),
+  richness_plot, ncol = 2, axis = c("tb"), align = c("hv"))
 # dev.off()
-# ?plot_grid()
-```
 
-```{r, fig.width=17, fig.height=9}
-# plot_grid(tile_tax %+% subset(gr_relAbun_toheat, !(Taxa == "Unassigned-Eukaryote" | 
-#                                            RES_COSMO == "Other" |
-#                                            Taxa %in% rm)) + geom_tile(color = "black", fill = "black"),
-#           richness_plot %+% subset(richness_df, !(Broad_Taxa == "Opisthokonta" | 
-#                                                     Broad_Taxa == "Unassigned-Eukaryote")), 
-#           ncol = 2, axis = c("tb"), align = c("hv"))
+# Get legend
+# legend_clr <- get_legend(tile_tax_CLR %+% subset(gr_relAbun_toheat, RelAbun_Taxa2 > 0) +
+# scale_fill_gradientn(colors = rev(two), na.value = NA))
+# svg("figs/legend-tileplot.svg", h=5, w=5)
+# tile_tax_CLR %+% subset(gr_relAbun_toheat, RelAbun_Taxa2 > 0) +
+#   scale_fill_gradientn(colors = rev(two), na.value = NA)
+# dev.off()
+# plot_grid(legend_clr)
 ```
-
 
 ## Supplementary plots
 
 ## Supplementary bar plots
-Generate additional supplementary plots as bar plot.
-```{r Ciliate diversity as barplot}
-# Factor
-ciliate_order <- c("Heterotrichea","Karyorelictea","Litostomatea","Nassophorea","Oligohymenophorea","Phyllopharyngea","Plagiopylea","Prostomatea","Spirotrichea-Choreotrichida","Spirotrichea-Euplotia","Spirotrichea-Hypotrichia","Spirotrichea-Other","Spirotrichea-Strombidiida","Spirotrichea-Tintinnida","Ciliates-Other")
-gr_tax_res_toplot$CILIATE_ORDER <- factor(gr_tax_res_toplot$Taxa2, levels = ciliate_order)
-CILIATE_COLOR <- c("#ffffcc","#d9f0a3","#addd8e","#78c679","#31a354","#006837","#fde0dd","#fcc5c0","#fa9fb5","#f768a1","#dd3497","#ae017e","#7a0177","#49006a","#bdbdbd")
-names(CILIATE_COLOR)<-ciliate_order
-# head(gr_tax_res_toplot)
-ciliate_plot <- gr_tax_res_toplot %>% 
-    filter(Taxa %in% "Alveolata-Ciliates") %>% 
-    filter(!(RES_COSMO == "Other")) %>% 
-    ggplot(aes(x = SAMPLENAME, y = SUM, fill = CILIATE_ORDER)) +
-    geom_bar(stat = "identity", position = "fill", color = "black") +
-    scale_fill_manual(values = CILIATE_COLOR) +
-    scale_y_continuous(expand = c(0,0))+
-    theme(legend.position = "right",
-          panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.border = element_blank(),
-          panel.background = element_blank(),
-          axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, color = "black", face="bold", size = 12),
-          axis.text.y = element_text(color="black", face="bold", size = 12),
-          strip.text.x = element_blank(),
-          strip.background = element_blank(),
-          legend.title = element_blank()) +
-    labs(x="", y="Relative abundance")+
-    facet_grid(RES_COSMO~LOCATION_ORDER, space = "free", scales = "free")
-```
-
-```{r, fig.height=8, fig.width=9}
-# ciliate_plot
-```
 
 Repeat high-resolution look at protistan biogeography, but without ciliate groups.
-
-```{r Plot non-ciliates}
-metaz <- c("Opisthokonta-Fungi", "Opisthokonta-Other", "Opisthokonta-Metazoa")
-gr_taxa2_else <- gr_tax_res_toplot %>% 
-  filter(!(Taxa == "Alveolata-Ciliates")) %>% 
-  filter(!(Taxa %in% metaz)) %>% 
-  filter(!RES_COSMO == "Other") %>% 
-  group_by(SAMPLENAME, Taxa2, RES_COSMO, LOCATION_ORDER) %>% 
-  summarise(SUM_2 = sum(SUM)) %>% 
-  data.frame
-
-# Other protistan taxa - non-cilaite
-tax_order <- c("Alveolata-Other","Gymnodiniales","Peridiniales","Prorocentrales","Torodiniales","Noctilucales","Gonyaulacales","Suessiales","Apicomplexa","Syndiniales Dino-Groups (I-V)","Breviatea","Lobosa","Amoebozoa","Hilomonadea","Apusomonadidae","Mantamonadidea","Apusozoa","Archaeplastida-Chlorophyta","Archaeplastida-Other","Archaeplastida-Streptophyta","Metamonada","Discoba","Hacrobia-Cryptophyta","Hacrobia-Haptophyta","Centroheliozoa","Katablepharidophyta","Picozoa","Telonemia","Hacrobia-Other","Endomyxa","Filosa-Imbricatea","Filosa-Granofilosea","Filosa-Thecofilosea","Filosa-Sarcomonadea","Filosa","RAD-A","RAD-B","RAD-C","Polycystinea-Spumellarida","Polycystinea-Nassellaria","Polycystinea-Collodaria","Rhizaria-Acantharea","Rhizaria-Radiolaria","Rhizaria-Cercozoa","Rhizaria-Other","MAST","Bacillariophyta","Bolidophyceae","Chrysophyceae","Dictyochophyceae","MOCH","Pelagophyceae","Stramenopiles-Other","Synurophyceae","Unassigned-Eukaryote")
-color_order <- c("#bdbdbd","#f7f4f9","#e7e1ef","#d4b9da","#c994c7","#df65b0","#e7298a","#ce1256","#980043","#67001f","#fcae91","#fb6a4a","#de2d26","#fc8d59","#ef6548","#d7301f","#990000","#ffffcc","#c2e699","#78c679","#238443","#005a32","#ece2f0","#a6bddb","#67a9cf","#3690c0","#02818a","#016c59","#014636","#eff3ff","#c6dbef","#9ecae1","#6baed6","#3182bd","#08519c","#edf8fb","#ccece6","#99d8c9","#66c2a4","#2ca25f","#006d2c","#9ecae1","#6baed6","#3182bd","#08519c","#fcfbfd","#efedf5","#dadaeb","#bcbddc","#9e9ac8","#807dba","#6a51a3","#54278f","#3f007d","#525252")
-gr_taxa2_else$TAXORDER <- factor(gr_taxa2_else$Taxa2, levels = tax_order)
-names(color_order) <- tax_order
-# tmp <- (gr_tax_res_toplot %>% filter(!(Taxa == "Alveolata-Ciliates")) %>%  filter(!(Taxa %in% metaz)) %>% select(Taxa, Taxa2))
-# View(unique(tmp))
-
-gr_plot_other <- ggplot(gr_taxa2_else, aes(x = SAMPLENAME, y = SUM_2, fill = TAXORDER)) +
-    geom_bar(stat = "identity", position = "fill", color = "black") +
-    scale_fill_manual(values = color_order) +
-    scale_y_continuous(expand = c(0,0))+
-    theme(legend.position = "right",
-          panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.border = element_blank(),
-          panel.background = element_blank(),
-          axis.text.x = element_text(angle=90, hjust=1, vjust=0.5, color = "black", face="bold", size = 12),
-          axis.text.y = element_text(color="black", face="bold", size = 12),
-          strip.text.x = element_blank(),
-          strip.background = element_blank(),
-          legend.title = element_blank()) +
-    labs(x="", y="Relative abundance")+
-    # guides(fill = guide_legend(ncol = 1)) +
-    facet_grid(RES_COSMO~LOCATION_ORDER, space = "free", scales = "free")
-```
-
-
-```{r, fig.width=14, fig.height=8}
-# gr_plot_other
-```
-
-```{r Supplementary metazoa plot, fig.height=8, fig.width=10}
-# svg("Supplementary-metazoa-plot.svg", h = 8, w = 10)
-# hets_plot %+% subset(gr_tax_res_toplot, !(RES_COSMO == "Other") & (Taxa %in% metaz))
-# dev.off()
-```
 
 
 ## ID most abundant ASVs
@@ -2185,10 +2011,8 @@ barplot_16s(bac_wcuratedtax_toplot %>% filter(!(LOCATION %in% rm_loc)))
 # unique(bac_wcuratedtax$LocationName)
 ```
 
-
-
 ### Data transformation-Jaccard
-
+Ordination analysis for 16S results.
 ```{r Transform for ordination}
 # head(bac_wcuratedtax)
 rm_loc <- c("Purple Rain Vent", "Octopus Springs Vent", "Blue Ciliate")
@@ -2352,7 +2176,7 @@ bac_wtax_mod <- bac_wtax %>%
 # Sort and filter eukaryote ASVs to consider:
 sumseq <- sum(gr_stats_wtax$COUNT_AVG)
 metaz <- c("Opisthokonta-Fungi", "Opisthokonta-Other", "Opisthokonta-Metazoa")
-head(gr_stats_wtax)
+# head(gr_stats_wtax)
 euk_data_interact <- gr_stats_wtax %>%
   type.convert(as.is = TRUE) %>%
   filter(Sampletype == "in situ") %>% #select only in situ samples
@@ -2658,7 +2482,7 @@ summary_int <- tax_sum_interact %>%
 ```
 
 ```{r Format interactive}
-# head(tax_sum_interact)
+head(tax_sum_interact)
 tax_interact_cor <- tax_sum_interact %>% 
   unite(EUK, TAX_SHORT.A, EUK_2.A, sep = "_", remove = TRUE) %>% 
   select(EUK, PROK = TAX_SHORT.B, COUNT) %>% 
@@ -2667,6 +2491,7 @@ tax_interact_cor <- tax_sum_interact %>%
   # pivot_wider(names_from = PROK, values_from = COUNT, values_fn = sum, values_fill = 0) %>% 
   data.frame
 # head(tax_interact_cor)
+table(tax_sum_interact %>% select(EUK_DIST.A))
 ```
 
 ```{r Tile plot interaction total, fig.height=10, fig.width=12}
@@ -2681,8 +2506,10 @@ tax_interact_cor <- tax_sum_interact %>%
 ```{r Prep data ahead of alluvial}
 library(ggalluvial)
 # head(tax_sum_interact)
+# unique(tax_sum_interact$TAX_SHORT.A)
 putative_prey <- tax_sum_interact %>% 
-  # filter(!(Broad_Taxa.A == "Unassigned-Eukaryote")) %>% 
+  # Remove NA
+  filter(!(is.na(TAX_SHORT.B))) %>%
   group_by(TAX_SHORT.A, TAX_SHORT.B, EUK_DIST.A) %>% 
   summarise(count_sum = sum(COUNT)) %>% 
   data.frame
@@ -2690,29 +2517,154 @@ putative_prey <- tax_sum_interact %>%
 
 level2ORDER <- c("Alveolata-Ciliates","Alveolata-Dinoflagellates","Alveolata-Syndiniales","Alveolata-Other","Rhizaria-Cercozoa","Rhizaria-Radiolaria","Rhizaria-Other","Stramenopiles-MAST","Stramenopiles-Ochrophyta","Stramenopiles-Other","Hacrobia-Cryptophyta","Hacrobia-Haptophyta","Hacrobia-Other","Amoebozoa","Excavata","Apusozoa","Archaeplastida-Chlorophyta","Archaeplastida-Other","Opisthokonta-Fungi","Opisthokonta-Metazoa","Opisthokonta-Other","Unassigned-Eukaryote")
 level2color <- c("#fa9fb5","#d7b5d8","#c994c7","#ce1256","#fc9272","#ef3b2c","#800026","#fff7bc","#fec44f","#d95f0e","#74c476","#238b45","#00441b","#7fcdbb","#084081","#c6dbef","#2b8cbe","#016c59","#bcbddc","#807dba","#54278f","#bdbdbd")
-# level2color <- c("#f1eef6","#d7b5d8","#df65b0","#ce1256","#fc9272","#ef3b2c","#800026","#fff7bc","#fec44f","#d95f0e","#74c476","#238b45","#00441b","#7fcdbb","#084081","#c6dbef","#2b8cbe","#016c59","#bcbddc","#807dba","#54278f","#bdbdbd")
 putative_prey$LEVEL2ORDER <- factor(putative_prey$TAX_SHORT.A, levels=level2ORDER)
 names(level2color)<-level2ORDER
+
+bac_tax_color<-c("#a50026","#d73027","#f46d43","#fdae61","#fee090","#ffffbf","#40004b","#762a83","#9970ab","#c2a5cf","#e7d4e8","#d9f0d3","#a6dba0","#5aae61","#1b7837","#00441b","#e0f3f8","#abd9e9","#74add1","#4575b4","#313695","#8e0152","#c51b7d","#de77ae","#f1b6da","#fde0ef","#e6f5d0","#b8e186","#7fbc41","#4d9221","#276419","#bababa","#878787","#4d4d4d","#1a1a1a")
+bac_tax_order <- c("Epsilonbacteraeota-Arcobacter","Epsilonbacteraeota-Caminibacter","Epsilonbacteraeota-Campylobacter","Epsilonbacteraeota-Hydrogenimonas","Epsilonbacteraeota-Nitratifractor","Epsilonbacteraeota-Nitratiruptor","Epsilonbacteraeota-Sulfurimonas","Epsilonbacteraeota-Sulfurovum","Proteobacteria-Alphaproteobacteria","Proteobacteria-Deltaproteobacteria","Proteobacteria-Gammaproteobacteria","Proteobacteria-Methylococcales","Proteobacteria-Oceanospirillales","Proteobacteria-SUP05 cluster","Acidobacteria","Actinobacteria","Aquificae","Bacteroidetes","Chloroflexi","Thaumarchaeota-Nitrososphaeria","Euryarchaeota-Thermoplasmata","Fusobacteria-Psychrilyobacter","Marinimicrobia (SAR406 clade)","Nitrospinae-Nitrospinaceae","Other")
+putative_prey$TAX_ORDER_BAC <- factor(putative_prey$TAX_SHORT.B, levels = tax_order)
+names(bac_tax_color) <- bac_tax_order
+
+# tmp_color <- c("#fa9fb5","#d7b5d8","#c994c7","#ce1256","#fc9272","#ef3b2c","#800026","#fff7bc","#fec44f","#d95f0e","#74c476","#238b45","#00441b","#7fcdbb","#084081","#c6dbef","#2b8cbe","#016c59","#bcbddc","#807dba","#54278f","#bdbdbd","#a50026","#d73027","#f46d43","#fdae61","#fee090","#ffffbf","#40004b","#762a83","#9970ab","#c2a5cf","#e7d4e8","#d9f0d3","#a6dba0","#5aae61","#1b7837","#00441b","#e0f3f8","#abd9e9","#74add1","#4575b4","#313695","#8e0152","#c51b7d","#de77ae","#f1b6da","#fde0ef","#e6f5d0","#b8e186","#7fbc41","#4d9221","#276419","#bababa","#878787","#4d4d4d","#1a1a1a")
+
+donut_joint_tax <- c("Alveolata-Ciliates","Alveolata-Dinoflagellates","Alveolata-Syndiniales","Alveolata-Other","Rhizaria-Cercozoa","Rhizaria-Radiolaria","Rhizaria-Other","Stramenopiles-MAST","Stramenopiles-Ochrophyta","Stramenopiles-Other","Hacrobia-Cryptophyta","Hacrobia-Haptophyta","Hacrobia-Other","Amoebozoa","Excavata","Apusozoa","Archaeplastida-Chlorophyta","Archaeplastida-Other","Opisthokonta-Fungi","Opisthokonta-Metazoa","Opisthokonta-Other","Unassigned-Eukaryote",
+                     "Epsilonbacteraeota-Arcobacter","Epsilonbacteraeota-Caminibacter","Epsilonbacteraeota-Campylobacter","Epsilonbacteraeota-Hydrogenimonas","Epsilonbacteraeota-Nitratifractor","Epsilonbacteraeota-Nitratiruptor","Epsilonbacteraeota-Sulfurimonas","Epsilonbacteraeota-Sulfurovum","Proteobacteria-Alphaproteobacteria","Proteobacteria-Deltaproteobacteria","Proteobacteria-Gammaproteobacteria","Proteobacteria-Methylococcales","Proteobacteria-Oceanospirillales","Proteobacteria-SUP05 cluster","Acidobacteria","Actinobacteria","Aquificae","Bacteroidetes","Chloroflexi","Thaumarchaeota-Nitrososphaeria","Euryarchaeota-Thermoplasmata","Fusobacteria-Psychrilyobacter","Marinimicrobia (SAR406 clade)","Nitrospinae-Nitrospinaceae","Other")
+donut_joint_tax_color <- c("#fa9fb5","#d7b5d8","#c994c7","#ce1256","#fc9272","#ef3b2c","#800026","#fff7bc","#fec44f","#d95f0e","#74c476","#238b45","#00441b","#7fcdbb","#084081","#c6dbef","#2b8cbe","#016c59","#bcbddc","#807dba","#54278f","#bdbdbd",
+                           "#a50026","#d73027","#f46d43","#fdae61","#fee090","#ffffbf","#40004b","#762a83","#9970ab","#c2a5cf","#e7d4e8","#d9f0d3","#a6dba0","#5aae61","#1b7837","#00441b","#e0f3f8","#abd9e9","#74add1","#4575b4","#313695","#8e0152","#c51b7d","#de77ae","#f1b6da","#fde0ef","#e6f5d0","#b8e186","#7fbc41","#4d9221","#276419","#bababa","#878787","#4d4d4d","#1a1a1a")
+putative_prey$TAX_ORDER_BAC <- factor(putative_prey$TAX_SHORT.B, levels = donut_joint_tax)
+names(donut_joint_tax_color) <- donut_joint_tax
+
 ```
 
-```{r Alluvial plot, fig.height=18, fig.width=25}
-# svg("figs/18s-16s-alluvial-interaction.svg", h = 18, w = 25)
+```{r Alluvial plot, fig.height=15, fig.width=22}
+# svg("figs/18s-16s-alluvial-interaction.svg", h = 15, w = 22)
 ggplot(putative_prey,
-       aes(axis1 = TAX_SHORT.A, axis2 = TAX_SHORT.B, y = count_sum)) +
+       aes(axis1 = LEVEL2ORDER, axis2 = TAX_SHORT.B, y = count_sum)) +
   scale_x_discrete(limits = c("TAX_SHORT.A", "TAX_SHORT.B"), expand = c(.2, .05)) +
-  geom_alluvium(aes(fill = LEVEL2ORDER), alpha = 1, width = 1/3) +
-  scale_fill_manual(values = level2color) +
+  geom_alluvium(aes(fill = LEVEL2ORDER), 
+                alpha = 1, width = 1/10) +
+                # segments = 1, knot.prop = FALSE,
+                # decreasing = FALSE, width = 1/8,
+                # curve_type = "xspline", curve_range = 4) +
+  # scale_fill_manual(values = level2color) +
+  scale_fill_manual(values = tmp_color) +
   facet_wrap(.~ EUK_DIST.A, scales = "free") +
-  geom_stratum(size = 0.5, width = 1/3, fill = "#d9d9d9", alpha = 0.7, color = "#525252") +
+  # geom_stratum(width = 1/10, fill = "#d9d9d9", alpha = 0.2, color = "#525252") +
+  geom_stratum(width = 1/10, alpha = 1, color = "#525252", aes(fill = TAX_SHORT.B)) +
   geom_text(stat = "stratum", aes(label = after_stat(stratum)), size = 4, hjust = 1, color = "black") +
+  # ggrepel::geom_text_repel(stat = "stratum", aes(label = after_stat(stratum)), size = 6, color = "black", direction = "y", nudge_x = .5) +
   theme_minimal() +
   theme(axis.text.x = element_blank(),
         legend.title = element_blank(),
-        axis.text.y = element_text(color = "black", size = 14),
-        axis.title = element_text(color = "black", size = 14)) +
+        axis.text.y = element_text(color = "black", size = 16, face = "bold"),
+        axis.title = element_text(color = "black", size = 16, face = "bold")) +
   labs(y = "Total Interactions", x = "", title = "18S-16S interactions")
 # dev.off()
+# ?geom_alluvium
 ```
+
+```{r, fig.height=8, fig.width=8}
+# svg("resident-tmp.svg", w = 8, h = 8)
+# putative_prey %>% 
+#   filter(EUK_DIST.A != "Cosmopolitan") %>%
+#   group_by(LEVEL2ORDER, EUK_DIST.A) %>% 
+#     summarise(SUM = sum(count_sum)) %>% 
+# ggplot(aes(x = EUK_DIST.A, fill = LEVEL2ORDER, y = SUM)) +
+#   geom_bar(stat = "identity", 
+#            position = "stack", color = "black", alpha = 1, width = c(0.8)) +
+#             coord_polar("y", start = 0) +
+#             scale_fill_manual(values = level2color) +
+#             facet_wrap(.~EUK_DIST.A) +
+#             theme_void() +
+#             theme(legend.title = element_blank(),
+#                  legend.text = element_text(size = 15)) +
+#             labs(title = "Resident protist")
+# dev.off()
+```
+
+
+```{r, fig.height=12, fig.width=14}
+#
+# Alluvial donut for protists
+#
+
+svg("figs/alluvial-donut-resident.svg", h = 12, w = 24)
+putative_prey %>%
+  # Resident only
+  filter(EUK_DIST.A != "Cosmopolitan") %>% 
+ggplot(aes(axis1 = LEVEL2ORDER, axis2 = TAX_ORDER_BAC, y = count_sum)) +
+  scale_x_discrete(limits = c("TAX_SHORT.A", "TAX_SHORT.B"), expand = c(0.5, 0)) +
+  geom_alluvium(aes(fill = LEVEL2ORDER), 
+                alpha = 1, width = 1/10, color = "black") +
+  scale_fill_manual(values = level2color) +
+  geom_stratum(width = 1/4, alpha = 1, color = "black", aes(fill = LEVEL2ORDER)) +
+  ggrepel::geom_text_repel(stat = "stratum", aes(label = after_stat(stratum)), size = 6, color = "black", direction = "y", nudge_x = .5) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  theme(legend.title = element_blank()) +
+  labs(title = "Resident interactions")
+dev.off()
+
+svg("figs/alluvial-donut-cosmopolitan.svg", h = 12, w = 24)
+putative_prey %>%
+  # Cosmopiltan only
+  filter(EUK_DIST.A == "Cosmopolitan") %>%
+ggplot(aes(axis1 = LEVEL2ORDER, axis2 = TAX_ORDER_BAC, y = count_sum)) +
+  scale_x_discrete(limits = c("TAX_SHORT.A", "TAX_SHORT.B"), expand = c(0.5, 0)) +
+  geom_alluvium(aes(fill = LEVEL2ORDER),
+                alpha = 1, width = 1/10, color = "black") +
+  scale_fill_manual(values = level2color) +
+  geom_stratum(width = 1/4, alpha = 1, color = "black", aes(fill = LEVEL2ORDER)) +
+  ggrepel::geom_text_repel(stat = "stratum", aes(label = after_stat(stratum)), size = 6, color = "black", direction = "y", nudge_x = .5) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  theme(legend.title = element_blank()) +
+  labs(title = "Cosmopolitan interactions")
+dev.off()
+# View(putative_prey)
+```
+
+```{r Alluvial for 16S, fig.height=12, fig.width=14}
+#
+# Alluvial donut for bacteria
+#
+
+# svg("figs/alluvial-donut-resident-16S.svg", h = 12, w = 24)
+# names(bac_tax_color) <- bac_tax_order
+putative_prey %>%
+  # Resident only
+  filter(EUK_DIST.A != "Cosmopolitan") %>% 
+ggplot(aes(axis1 = LEVEL2ORDER, axis2 = TAX_ORDER_BAC, y = count_sum)) +
+  scale_x_discrete(limits = c("TAX_SHORT.A", "TAX_ORDER_BAC"), expand = c(0.5, 0)) +
+  geom_alluvium(aes(fill = TAX_ORDER_BAC), 
+                alpha = 1, width = 1/10, color = "black") +
+  geom_stratum(width = 1/4, alpha = 1, color = "black", aes(fill = TAX_ORDER_BAC)) +
+  scale_fill_manual(values = bac_tax_color) +
+  ggrepel::geom_text_repel(stat = "stratum", aes(label = after_stat(stratum)), size = 6, color = "black", direction = "y", nudge_x = .5) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  theme(legend.title = element_blank()) +
+  labs(title = "Resident interactions")
+# dev.off()
+
+# svg("figs/alluvial-donut-cosmopolitan-16S.svg", h = 12, w = 24)
+putative_prey %>%
+  # Resident only
+  filter(EUK_DIST.A == "Cosmopolitan") %>% 
+ggplot(aes(axis1 = LEVEL2ORDER, axis2 = TAX_ORDER_BAC, y = count_sum)) +
+  scale_x_discrete(limits = c("TAX_SHORT.A", "TAX_ORDER_BAC"), expand = c(0.5, 0)) +
+  geom_alluvium(aes(fill = TAX_ORDER_BAC), 
+                alpha = 1, width = 1/10, color = "black") +
+  geom_stratum(width = 1/4, alpha = 1, color = "black", aes(fill = TAX_ORDER_BAC)) +
+  scale_fill_manual(values = bac_tax_color) +
+  ggrepel::geom_text_repel(stat = "stratum", aes(label = after_stat(stratum)), size = 6, color = "black", direction = "y", nudge_x = .5) +
+  coord_polar("y", start=0) +
+  theme_void() +
+  theme(legend.title = element_blank()) +
+  labs(title = "Cosmopolitan interactions")
+# dev.off()
+```
+
 
 
 # Compare grazing rates and environmental information
@@ -2721,6 +2673,7 @@ gr <- read.delim("Grazing-calc-wCarbon-results.txt")
 env <- read.delim("data-input/GR-environ-SAMPLE.txt")
 # head(gr)
 # View(unique(gr$SAMPLE))
+env
 ```
 
 ```{r Join data}
@@ -2774,10 +2727,13 @@ regression_gr_env <- gr_env %>%
 ```
 
 
-```{r Factoring}
-sampleorder <- c("Near vent BW","Mt. Edwards","Venti latte","Candelabra","Sir Ventsalot")
+```{r Factoring regression}
+sampleorder <- c("Near vent BW","Mt Edwards","Venti latte","Candelabra","SirVentsalot")
+sampleorder_names <- c("Near vent BW","Mt. Edwards","Venti latte","Candelabra","Sir Ventsalot")
 shapes <- c(23, 21, 21, 21, 21)
 samplecolor <- c("#6f88af","#61ac86","#711518","#dfa837","#ce536b")
+regression_gr_env$SAMPLE_ORDER <- factor(regression_gr_env$Vent.name, levels = sampleorder, labels = sampleorder_names)
+names(sampleorder_names) <- samplecolor
 
 regression_gr_env$ENV_LABEL <- factor(regression_gr_env$Env_variable, levels = c("TEMP","MICRO", "SEA_PER", "PH", "MG"),
                            labels = c(expression("Temperature"^o~"C"),
@@ -2785,6 +2741,7 @@ regression_gr_env$ENV_LABEL <- factor(regression_gr_env$Env_variable, levels = c
                                       bquote("Seawater~Percent"),
                                       bquote("pH"),
                                       bquote("Mg (mM)")))
+# head(regression_gr_env)
 ```
 
 
@@ -2812,7 +2769,7 @@ plot_grid(
     strip.text = element_text(color = "black", size = 10),
     axis.title = element_text(color = "black", size = 10),
     legend.title = element_blank()) +
-  labs(y = bquote("Cells "~mL^-1 ~consumed ~hr^-1), x = ""),
+  labs(y = bquote("Cells "~mL^-1 ~hr^-1), x = ""),
   regression_gr_env %>% 
   filter(!(Env_variable == "DEPTH")) %>% 
     filter(!(is.na(env_value))) %>%
@@ -2857,264 +2814,6 @@ plot_grid(
 # dev.off()
 # str(gr_env)
 ```
-
-
-# Excess
-## Explore putative enrichment
-```{r Subset only ASVs in situ and in grazing}
-load("data-input/GR-countinfo-withASVdistribution.RData", verbose = T)
-
-gr_stats_wtax_wgrazing <- gr_stats_wtax %>% 
-  left_join(gr_dist_grazing, by = "Feature.ID") %>% 
-  filter(Graze_enriched == "Enriched")
-# dim(gr_stats_wtax)
-# dim(gr_stats_wtax_wgrazing)
-
-# Focuses down to just over 1000 ASVs
-length(unique(gr_stats_wtax$Feature.ID))
-length(unique(gr_stats_wtax_wgrazing$Feature.ID))
-#
-unique(gr_stats_wtax_wgrazing$LocationName)
-# head(gr_stats_wtax_wgrazing)
-```
-
-```{r Separate by experiment}
-# Function to select ASVs of interest
-dfnear <- gr_stats_wtax_wgrazing %>% type.convert(as.is = TRUE) %>%
-  filter(near_graze == "near") %>% 
-  filter(LocationName == "Near vent BW") %>% 
-  filter(SAMPLEID != "T24") %>% #Remove T1, which was not used for the grazing calculations
-  select(Feature.ID, LocationName, SAMPLEID, Kingdom:Species, Taxa, DIST_simple, COUNT_AVG) %>% 
-  pivot_wider(names_from = SAMPLEID, values_from = COUNT_AVG, values_fill = 0) %>%
-  mutate(t0 = case_when(
-    T0 > sterivex ~ "higher",
-    TRUE ~ "lower")) %>%
-  mutate(tf = case_when(
-      T36 > T0 ~ "higher",
-      TRUE ~ "lower"
-    )) %>% 
-  # filter(DIST_simple == "Resident") %>% 
-  # filter(tf == "higher") %>% 
-  ##CHANGE x AXIS TO NUMERICS
-  pivot_longer(cols = c(sterivex, T0, T36), names_to = "samples") %>% 
-  mutate(x_num = case_when(
-    samples == "sterivex" ~ 1,
-    samples == "T0" ~ 2,
-    TRUE ~ 3
-  )) %>% 
-  group_by(x_num, samples, LocationName, Taxa) %>% 
-    summarise(SUM = sum(value),
-              RICH = n_distinct(Feature.ID)) %>%
-  data.frame
-
-#
-# unique(gr_stats_wtax_wgrazing %>% filter(latte_graze == "latte") %>% 
-  # filter(LocationName == "Venti Latte Vent"))
-# unique(gr_stats_wtax_wgrazing$SAMPLEID)
-dflatte <- gr_stats_wtax_wgrazing %>% type.convert(as.is = TRUE) %>%
-  filter(latte_graze == "latte") %>% 
-  filter(LocationName == "Venti Latte Vent") %>% 
-# filter(SAMPLEID != "T24") %>% #Remove T1, which was not used for the grazing calculations
-  # select(Feature.ID, LocationName, SAMPLEID, Kingdom:Species, Taxa, DIST_simple, COUNT_AVG) %>% 
-  # Average across in situ replicates for Venti Latte
-  group_by(Feature.ID, LocationName, SAMPLEID, Taxon_updated, Taxa, DIST_simple, COUNT_AVG) %>% 
-  summarise(COUNT_AVG_AVG = mean(COUNT_AVG)) %>% 
-  pivot_wider(names_from = SAMPLEID, values_from = COUNT_AVG_AVG, values_fill = 0) %>%
-  mutate(t0 = case_when(
-    T0 > SUPR ~ "higher",
-    TRUE ~ "lower")) %>%
-  mutate(tf = case_when(
-      T36 > T0 ~ "higher",
-      TRUE ~ "lower"
-    )) %>%
-  # filter(DIST_simple == "Resident") %>%
-  # filter(tf == "higher") %>%
-  ##CHANGE x AXIS TO NUMERICS
-  pivot_longer(cols = c(SUPR, T0, T36), names_to = "samples") %>%
-  mutate(x_num = case_when(
-    samples == "SUPR" ~ 1,
-    samples == "T0" ~ 2,
-    TRUE ~ 3
-  )) %>%
-  group_by(x_num, samples, LocationName, Taxa) %>%
-    summarise(SUM = sum(value),
-              RICH = n_distinct(Feature.ID)) %>%
-  data.frame
-# head(dflatte)
-
-
-dfsir <- gr_stats_wtax_wgrazing %>% type.convert(as.is = TRUE) %>%
-  filter(sirvents_graze == "sirvents") %>% 
-  filter(LocationName == "SirVentsAlot Vent") %>% 
-  # filter(SAMPLEID != "T24") %>% #Remove T1, which was not used for the grazing calculations
-  # select(Feature.ID, LocationName, SAMPLEID, Kingdom:Species, Taxa, DIST_simple, COUNT_AVG) %>% 
-  # Average across in situ replicates for Venti Latte
-  group_by(Feature.ID, LocationName, SAMPLEID, Taxon_updated, Taxa, DIST_simple, COUNT_AVG) %>% 
-  summarise(COUNT_AVG_AVG = mean(COUNT_AVG)) %>% 
-  pivot_wider(names_from = SAMPLEID, values_from = COUNT_AVG_AVG, values_fill = 0) %>%
-  # mutate(t0 = case_when(
-  #   T0 > SUPR ~ "higher",
-  #   TRUE ~ "lower")) %>%
-  mutate(tf = case_when(
-      T24 > SUPR ~ "higher",
-      TRUE ~ "lower"
-    )) %>%
-  # filter(DIST_simple == "Resident") %>%
-  # filter(tf == "higher") %>%
-  ##CHANGE x AXIS TO NUMERICS
-  pivot_longer(cols = c(SUPR, T24), names_to = "samples") %>%
-  mutate(x_num = case_when(
-    samples == "SUPR" ~ 1,
-    samples == "T24" ~ 2,
-    TRUE ~ 3
-  )) %>%
-  group_by(x_num, samples, LocationName, Taxa) %>%
-    summarise(SUM = sum(value),
-              RICH = n_distinct(Feature.ID)) %>%
-  data.frame
-# head(dfsir)
-
-# View(gr_stats_wtax_wgrazing %>%
-#   filter(edwards_graze == "edwards") %>% 
-#   filter(LocationName == "Mt Edwards Vent"))
-# unique(gr_stats_wtax_wgrazing$edwards_graze)
-dfed <- gr_stats_wtax_wgrazing %>% type.convert(as.is = TRUE) %>%
-  filter(edwards_graze == "edwards") %>% 
-  filter(LocationName == "Mt Edwards Vent") %>% 
-  # filter(SAMPLEID != "T24") %>% #Remove T1, which was not used for the grazing calculations
-  # select(Feature.ID, LocationName, SAMPLEID, Kingdom:Species, Taxa, DIST_simple, COUNT_AVG) %>% 
-  # Average across in situ replicates for Venti Latte
-  group_by(Feature.ID, LocationName, SAMPLEID, Taxon_updated, Taxa, DIST_simple, COUNT_AVG) %>% 
-  summarise(COUNT_AVG_AVG = mean(COUNT_AVG)) %>% 
-  pivot_wider(names_from = SAMPLEID, values_from = COUNT_AVG_AVG, values_fill = 0) %>%
-  mutate(t0 = case_when(
-    T0 > SUPR ~ "higher",
-    TRUE ~ "lower")) %>%
-  mutate(tf = case_when(
-      T36 > SUPR ~ "higher",
-      TRUE ~ "lower"
-    )) %>%
-  # filter(DIST_simple == "Resident") %>%
-  # filter(tf == "higher") %>%
-  ##CHANGE x AXIS TO NUMERICS
-  pivot_longer(cols = c(SUPR, T0, T36), names_to = "samples") %>%
-  mutate(x_num = case_when(
-    samples == "SUPR" ~ 1,
-    samples == "T0" ~ 2,
-    TRUE ~ 3
-  )) %>%
-  group_by(x_num, samples, LocationName, Taxa) %>%
-    summarise(SUM = sum(value),
-              RICH = n_distinct(Feature.ID)) %>%
-  data.frame
-# head(dfed)
-
-```
-
-```{r Factoring each experiment}
-level2ORDER <- c("Alveolata-Ciliates","Alveolata-Dinoflagellates","Alveolata-Syndiniales","Alveolata-Other","Rhizaria-Cercozoa","Rhizaria-Radiolaria","Rhizaria-Other","Stramenopiles-MAST","Stramenopiles-Ochrophyta","Stramenopiles-Other","Hacrobia-Cryptophyta","Hacrobia-Haptophyta","Hacrobia-Other","Amoebozoa","Excavata","Apusozoa","Archaeplastida-Chlorophyta","Archaeplastida-Other","Opisthokonta-Fungi","Opisthokonta-Metazoa","Opisthokonta-Other","Unassigned-Eukaryote")
-
-level2color <- c("#f1eef6","#d7b5d8","#df65b0","#ce1256","#fc9272","#ef3b2c","#800026","#fff7bc","#fec44f","#d95f0e","#74c476","#238b45","#00441b","#7fcdbb","#084081","#c6dbef","#2b8cbe","#016c59","#bcbddc","#807dba","#54278f","#bdbdbd")
-
-names(level2color)<-level2ORDER
-
-# FACTORING:
-dfnear$LEVEL2ORDER <- factor(dfnear$Taxa, levels=level2ORDER)
-dflatte$LEVEL2ORDER <- factor(dflatte$Taxa, levels = level2ORDER)
-dfsir$LEVEL2ORDER <- factor(dfsir$Taxa, levels = level2ORDER)
-dfed$LEVEL2ORDER <- factor(dfed$Taxa, levels = level2ORDER)
-#
-nearbw <- ggplot(dfnear, aes(x = x_num, fill = LEVEL2ORDER, y = SUM)) +
-  geom_area(aes(fill = LEVEL2ORDER), position = "stack", stat = "identity", color = "black") +
-  scale_x_discrete(expand = c(0,0)) +
-  scale_fill_manual(values = level2color) +
-  annotate(geom="text", x=1.1, y=-0.02, label="in situ",
-              color="black") +
-  annotate(geom="text", x=2, y=-0.02, label="T0",
-              color="black") +
-  annotate(geom="text", x=2.9, y=-0.02, label="TF",
-              color="black") +
-    theme(legend.position = "right",
-        panel.border = element_blank(),
-        panel.background = element_blank(),
-        axis.text.x = element_blank(),
-        axis.ticks.x = element_line(),
-        axis.text.y = element_text(color="black", face="bold"),
-        legend.title = element_blank()) +
-  labs(x="Near vent BW", y="Relative abundance")
-# nearbw
-```
-
-```{r}
-
-venti <- ggplot(dflatte, aes(x = x_num, fill = LEVEL2ORDER, y = SUM)) +
-  geom_area(aes(fill = LEVEL2ORDER), position = "stack", stat = "identity", color = "black") +
-  scale_x_discrete(expand = c(0,0)) +
-  scale_fill_manual(values = level2color) +
-  # scale_color_manual(values = level2color) +
-  annotate(geom="text", x=1.1, y=-0.02, label="in situ",
-              color="black") +
-  annotate(geom="text", x=2, y=-0.02, label="T0",
-              color="black") +
-  annotate(geom="text", x=2.9, y=-0.02, label="TF",
-              color="black") +
-    theme(legend.position = "right",
-        panel.border = element_blank(),
-        panel.background = element_blank(),
-        axis.text.x = element_blank(),
-        axis.ticks.x = element_line(),
-        axis.text.y = element_text(color="black", face="bold"),
-        legend.title = element_blank()) +
-  labs(x="Venti latte", y="Relative abundance")
-# venti
-```
-
-```{r}
-sirvent <- ggplot(dfsir, aes(x = x_num, fill = LEVEL2ORDER, y = SUM)) +
-  geom_area(aes(fill = LEVEL2ORDER), position = "stack", stat = "identity", color = "black") +
-  scale_x_discrete(expand = c(0,0)) +
-  scale_fill_manual(values = level2color) +
-  # scale_color_manual(values = level2color) +
-  annotate(geom="text", x=1.1, y=-0.02, label="in situ",
-              color="black") +
-  annotate(geom="text", x=2, y=-0.02, label="TF",
-              color="black") +
-  # annotate(geom="text", x=2.9, y=-0.02, label="TF",
-  #             color="black") +
-    theme(legend.position = "right",
-        panel.border = element_blank(),
-        panel.background = element_blank(),
-        axis.text.x = element_blank(),
-        axis.ticks.x = element_line(),
-        axis.text.y = element_text(color="black", face="bold"),
-        legend.title = element_blank()) +
-  labs(x="Sir Ventsalot", y="Relative abundance")
-# sirvent
-```
-
-```{r}
-edward <- ggplot(dfed, aes(x = x_num, fill = LEVEL2ORDER, y = SUM)) +
-  geom_area(aes(fill = LEVEL2ORDER), position = "stack", stat = "identity", color = "black") +
-  scale_x_discrete(expand = c(0,0)) +
-  scale_fill_manual(values = level2color) +
-  # scale_color_manual(values = level2color) +
-  annotate(geom="text", x=1.1, y=-0.02, label="in situ",
-              color="black") +
-  annotate(geom="text", x=2, y=-0.02, label="TF",
-              color="black") +
-  annotate(geom="text", x=2.9, y=-0.02, label="TF",
-              color="black") +
-    theme(legend.position = "right",
-        panel.border = element_blank(),
-        panel.background = element_blank(),
-        axis.text.x = element_blank(),
-        axis.ticks.x = element_line(),
-        axis.text.y = element_text(color="black", face="bold"),
-        legend.title = element_blank()) +
-  labs(x="Sir Ventsalot", y="Relative abundance")
-# edward
-```
-
 
 # Session Info
 ```{r}
